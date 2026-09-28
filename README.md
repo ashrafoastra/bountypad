@@ -28,6 +28,26 @@ Open **/dev** in the web app to post as any fictional account, edit or delete po
 3. Watch the token page: detected → confirming → (vote) → verified → releasing.
 4. `/claim`: log in as @alinamarsh, link a wallet, and the payout is sent.
 
+## Log in and wallets (Privy)
+
+Without Privy keys the app uses **dev login**: "Connect" gives you a simulated wallet, and the Claim page lets you pick a simulated X account.
+
+To use real wallets and real "Log in with X":
+1. Create an app at https://dashboard.privy.io.
+2. Login methods: turn on **Wallet**, **X (Twitter)** and **Email**. Wallets: turn on **Solana** (embedded wallets, create on login).
+3. Allowed domains: add `http://localhost:3000` (and your Vercel URL later).
+4. Put the **App ID** in `web/.env.local` as `NEXT_PUBLIC_PRIVY_APP_ID=...`
+5. Put the **App ID** and **App Secret** in `api/.env` as `PRIVY_APP_ID=...` and `PRIVY_APP_SECRET=...` (the secret never goes in `web/`).
+6. Restart both servers.
+
+In SIM mode with Privy on, logging in with your real X account adds it to the simulator, so you can launch a coin targeting yourself, post as yourself in **/dev**, and claim the payout to your Privy wallet.
+
+### Test A (Path 1: pay people before they ever log in)
+```bash
+npm run test:privy -w api -- your_x_handle
+```
+It creates (or finds) a Privy user tied to your X account with a Solana wallet and prints the address. Then log in on the site with that X account: if the account menu shows the **same** wallet, Test A passes. Set `PRIVY_PREGENERATE=true` in `api/.env`, and verified bounties then pay straight into a wallet tied to the target's X account.
+
 ## Repo
 
 | Folder | Owner | What's in it |
@@ -59,5 +79,5 @@ Set in `api/.env` (see `api/.env.example`): `X_BEARER_TOKEN`, `DATABASE_URL`, `V
 | Meteora DBC launch from the web (creates the mint) | on-chain + frontend | API accepts `mint` in REAL mode |
 | Keeper claiming DBC partner fees into pots | on-chain + backend | sim adds pot on each trade |
 | Holder snapshots from chain (exclude pool/creator/platform) | backend | `HolderSource` interface ready |
-| Privy "Log in with X" + embedded wallet | frontend + backend | blocked on Test A |
+| Privy | frontend + backend | built; needs your Privy app keys + Test A |
 | Launch post from the @BountyPad account (for quote bounties) | backend | disabled in REAL mode |

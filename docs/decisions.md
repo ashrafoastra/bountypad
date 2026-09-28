@@ -4,6 +4,9 @@ One line per decision, newest first. Anything marked PROPOSED needs all 3 to agr
 
 | Date | Decision | Status |
 |---|---|---|
+| 2026-09-28 | Login is Privy: Solana wallet, X, or email with an embedded Solana wallet. The API reads X accounts only from Privy's verified linked twitter_oauth account, never from the client. | Built |
+| 2026-09-28 | Path 1 uses Privy `users().getByTwitterSubject` / `users().create` (twitter_oauth account + Solana wallet). Behind `PRIVY_PREGENERATE` until Test A passes. | Built, pending Test A |
+| 2026-09-28 | Coin creators can't vote on their own coin (creator wallet excluded from the snapshot). | Agreed (CLAUDE.md §6.5) |
 | 2026-09-28 | A rejected detection (deleted, edited, failed vote, no quorum) reopens the bounty; the pot stays locked. Nothing is paid to holders or voters. | Agreed (CLAUDE.md §6.2) |
 | 2026-09-28 | Only one active detection per bounty at a time. The watcher only watches `OPEN` bounties. | PROPOSED |
 | 2026-09-28 | Payout amount is fixed when the challenge window opens. Fees after that go to the pot but not to this payout. | PROPOSED: on-chain team to confirm |
