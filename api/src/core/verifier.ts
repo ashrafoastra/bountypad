@@ -9,6 +9,8 @@ export interface VerifyContext {
   mint: string;
   launchPostId: string | null;
   tokenCreatedAt: string;
+  /** Posts made after the deadline never count, even if detected before it expires. */
+  deadline?: string;
 }
 
 export interface VerifyResult {
@@ -63,6 +65,9 @@ export function verifyPost(post: XPost, ctx: VerifyContext): VerifyResult {
       label: "Posted after the coin launched",
       pass: Date.parse(post.createdAt) > Date.parse(ctx.tokenCreatedAt),
     },
+    ...(ctx.deadline
+      ? [{ id: "BEFORE_DEADLINE" as const, label: "Posted before the deadline", pass: Date.parse(post.createdAt) <= Date.parse(ctx.deadline) }]
+      : []),
     {
       id: "POST_TYPE",
       label: "Original post or quote (no reposts or replies)",

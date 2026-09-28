@@ -51,5 +51,7 @@ export const env = {
     voteWindowSec: num(process.env.VOTE_WINDOW_SEC, sim ? 60 : 48 * 3600),
     challengeWindowSec: num(process.env.CHALLENGE_WINDOW_SEC, sim ? 20 : 48 * 3600),
     tradeSimEverySec: num(process.env.TRADE_SIM_EVERY_SEC, 2),
+    /** A post made just before the deadline still counts if the watcher sees it within this grace. */
+    deadlineGraceSec: num(process.env.DEADLINE_GRACE_SEC, sim ? 10 : 15 * 60),
   },
 };

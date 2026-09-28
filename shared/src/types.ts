@@ -65,7 +65,7 @@ export interface Bounty {
 }
 
 export interface CheckResult {
-  id: "AUTHOR" | "AFTER_LAUNCH" | "POST_TYPE" | "CONTENT" | "STILL_LIVE" | "VIDEO_LENGTH";
+  id: "AUTHOR" | "AFTER_LAUNCH" | "BEFORE_DEADLINE" | "POST_TYPE" | "CONTENT" | "STILL_LIVE" | "VIDEO_LENGTH";
   label: string;
   pass: boolean;
   detail?: string;
@@ -94,7 +94,8 @@ export interface VoteRound {
   opensAt: string;
   closesAt: string;
   extended: boolean;
-  result: "PENDING" | "PASSED" | "FAILED" | "NO_QUORUM";
+  /** CANCELLED: the bounty left VOTING another way (e.g. the target opted out). */
+  result: "PENDING" | "PASSED" | "FAILED" | "NO_QUORUM" | "CANCELLED";
 }
 
 export interface VoteTally {

@@ -131,6 +131,11 @@ describe("video phrase matching", () => {
     expect(phraseMatchScore("I'm holding Rocket coin", "yeah so I'm holding rocket coin guys")).toBe(100);
     expect(phraseMatchScore("I'm holding Rocket coin", "im holding rockit coin")).toBeGreaterThanOrEqual(85);
   });
+  it("rejects speech that shares small words but not the phrase", () => {
+    expect(phraseMatchScore("I am holding Jax coin", "I am going to the gym")).toBeLessThanOrEqual(30);
+    expect(phraseMatchScore("I am holding Jax coin", "good morning everyone welcome to the stream")).toBeLessThanOrEqual(30);
+    expect(phraseMatchScore("I am holding Jax coin", "ok so today, I am holding Jax coin, let's go")).toBe(100);
+  });
   it("scores unrelated speech low", () => {
     expect(phraseMatchScore("I'm holding Rocket coin", "good morning everyone welcome to the stream")).toBeLessThan(40);
   });

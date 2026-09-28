@@ -7,7 +7,8 @@ import { mapBounty, mapDetection, mapEvent, mapPayout, mapProfile, mapRound, map
 import { launch, resolveTarget, LaunchError } from "../services/launch";
 import { verifyVoteSignature } from "../core/voting";
 import { roundTally } from "../services/pipeline";
-import { addSignature, freeze, linkWallet, optOut } from "../services/payouts";
+import { addSignature, cancelFrozen, freeze, linkWallet, optOut, unfreeze } from "../services/payouts";
+import { isSolanaAddress } from "../core/solana";
 import { bus } from "../services/events";
 import { identify } from "../auth";
 
@@ -37,8 +38,8 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     const r = (await db.query(`
       select count(*) filter (where status in ('OPEN','DETECTED_CONFIRMING','VOTING'))::int as live,
              coalesce(sum(pot_lamports) filter (where status not in ('PAID','EXPIRED','OPTED_OUT')),0)::text as locked,
-             coalesce(sum(pot_lamports) filter (where status='PAID'),0)::text as paid,
-             count(*) filter (where status='PAID')::int as npaid
+             count(*) filter (where status='PAID')::int as npaid,
+             (select coalesce(sum(amount_lamports),0) from payouts where status='SENT')::text as paid
         from bounties`))[0];
     return { liveCoins: r.live, lockedLamports: r.locked, paidLamports: r.paid, bountiesPaid: r.npaid };
   });
@@ -130,7 +131,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
   });
 
   app.post("/api/votes/:roundId", async (req, reply) => {
-    const body = z.object({ wallet: z.string(), choice: z.enum(["YES", "NO"]), signature: z.string() }).parse(req.body);
+    const body = z.object({ wallet: z.string().refine(isSolanaAddress, "not a valid Solana address"), choice: z.enum(["YES", "NO"]), signature: z.string().max(120) }).parse(req.body);
     const roundId = (req.params as any).roundId;
     const r = (await db.query(`select * from vote_rounds where id=$1`, [roundId]))[0];
     if (!r || r.result !== "PENDING" || Date.parse(r.closes_at) < Date.now()) return reply.status(400).send({ error: "Vote is closed" });
@@ -189,11 +190,13 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
-  app.post("/api/admin/payouts/:id/freeze", async (req, reply) => {
-    if (!ctx.env.adminKey || req.headers["x-admin-key"] !== ctx.env.adminKey) return reply.status(401).send({ error: "admin only" });
-    await freeze(ctx, (req.params as any).id);
-    return { ok: true };
-  });
+  for (const [action, fn] of [["freeze", freeze], ["unfreeze", unfreeze], ["cancel", cancelFrozen]] as const) {
+    app.post(`/api/admin/payouts/:id/${action}`, async (req, reply) => {
+      if (!ctx.env.adminKey || req.headers["x-admin-key"] !== ctx.env.adminKey) return reply.status(401).send({ error: "admin only" });
+      await fn(ctx, (req.params as any).id);
+      return { ok: true };
+    });
+  }
 
   app.get("/api/bounties/:id/audit", async (req) => {
     return (await db.query(`select * from audit_log where bounty_id=$1 order by id`, [(req.params as any).id])).map((r: any) => ({

@@ -24,3 +24,21 @@ One line per decision, newest first. Anything marked PROPOSED needs all 3 to agr
 - **Test B (Meteora DBC):** can `feeClaimer` be a program PDA? If not, claim to the multisig and have the keeper deposit into each pot.
 - **Test C (X API field names):** X's current OpenAPI spec lists `post.fields` / `referenced_posts`, while most live integrations use `tweet.fields` / `referenced_tweets`. Make one real call to `GET /2/tweets/:id` and set `X_FIELD_STYLE` accordingly. The parser already accepts both.
 - **Test D (X API cost):** confirm whether empty search results are billed, to size the watcher interval.
+
+## Logic audit (2026-09-28)
+
+Full lifecycle is covered by `api/test/flow.test.ts` (runs on an in-memory database, `npm test -w api`).
+
+| Decision | Why |
+|---|---|
+| A coin and its bounty are written in **one database transaction** | A coin without a bounty can never exist, even if the server crashes mid-launch. |
+| Only **one live cashtag challenge per ticker + target** | One tweet of `$ROCKET` could otherwise settle two pots. Contract and video bounties are unique per coin, so they're unaffected. |
+| Posts must be made **before the deadline** (new `BEFORE_DEADLINE` check); the watcher keeps looking for a **grace period** after it (15 min real, 10 s SIM) | A post made one minute before the deadline still counts even if the watcher sees it a little later. Posts after the deadline never count. |
+| The payout is **the whole pot at release time** | Fees earned during the 48h challenge window go to the target too, not left orphaned. |
+| Admins can **unfreeze** (restart the challenge window) or **cancel** a frozen payout (bounty reopens, pot stays locked) | Freezing used to be a dead end. |
+| Payout and voter wallets must be valid Solana addresses | Prevents funds being sent to a typo. |
+| Opting out also **cancels pending detections and votes** | Otherwise jobs kept running on an opted-out bounty. |
+| Every status change is **conditional on the current status** | Two jobs racing (e.g. recheck vs opt-out) can't both move a bounty; the loser fails safely. |
+| Jobs re-check the bounty's status before acting | A vote closing on an already-frozen or opted-out bounty is cancelled, not applied. |
+| Video phrase score = the lower of (sequence similarity, how much of the phrase's words were actually spoken) | Character similarity alone scored random speech ~30-50%, sending unrelated videos to a vote. "I am going to the gym" vs "I am holding Jax coin" now scores 18 (auto-reject). Transcripts' "im"/"I'm" count as "I am". |
+| `shared/types.ts`: `BEFORE_DEADLINE` check id, `CANCELLED` vote result | **Needs approval from all 3** (contract change). |
