@@ -1,0 +1,11 @@
+{
+  "name": "bountypad",
+  "private": true,
+  "workspaces": ["shared", "api", "web"],
+  "scripts": {
+    "dev:api": "npm run dev -w api",
+    "dev:web": "npm run dev -w web",
+    "test": "npm test -w api",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w api"
+  }
+}

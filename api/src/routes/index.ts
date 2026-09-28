@@ -1,0 +1,185 @@
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
+import type { Stats, TokenDetail, TokenSummary, ProfileDetail } from "@bountypad/shared";
+import type { Ctx } from "../app";
+import { iso, str } from "../db";
+import { mapBounty, mapDetection, mapEvent, mapPayout, mapProfile, mapRound, mapToken, mapTrade } from "../db/repo";
+import { launch, resolveTarget, LaunchError } from "../services/launch";
+import { verifyVoteSignature } from "../core/voting";
+import { roundTally } from "../services/pipeline";
+import { addSignature, freeze, linkWallet, optOut } from "../services/payouts";
+import { bus } from "../services/events";
+
+const SUMMARY_SQL = `
+  select row_to_json(t) as t, row_to_json(b) as b, row_to_json(p) as p,
+         (select count(*) from holders h where h.token_id=t.id and h.balance > 0)::int as holders,
+         coalesce((select sum(sol_lamports) from trades tr where tr.token_id=t.id), 0)::text as volume
+    from tokens t join bounties b on b.token_id=t.id join profiles p on p.x_user_id=b.target_x_user_id`;
+
+function toSummary(r: any): TokenSummary {
+  return { token: mapToken(r.t), bounty: mapBounty(r.b), target: mapProfile(r.p), holders: r.holders, volumeLamports: str(r.volume) };
+}
+
+/**
+ * Who is logged in with X. SIM: the x-dev-x-user-id header. REAL: verify the Privy access
+ * token and read the linked X account (not wired until Test A passes).
+ */
+function xUserFrom(ctx: Ctx, req: FastifyRequest): string | null {
+  if (ctx.env.sim) return (req.headers["x-dev-x-user-id"] as string) || null;
+  return null;
+}
+
+export async function routes(app: FastifyInstance, ctx: Ctx) {
+  const { db } = ctx;
+
+  app.setErrorHandler((err: any, _req, reply) => {
+    if (err instanceof LaunchError) return reply.status(err.status).send({ error: err.message });
+    if (err instanceof z.ZodError) return reply.status(400).send({ error: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    app.log.error(err);
+    return reply.status(err.statusCode ?? 500).send({ error: err.message ?? "server error" });
+  });
+
+  app.get("/api/health", async () => ({ ok: true, sim: ctx.env.sim, solUsd: ctx.env.solUsd }));
+
+  app.get("/api/stats", async (): Promise<Stats> => {
+    const r = (await db.query(`
+      select count(*) filter (where status in ('OPEN','DETECTED_CONFIRMING','VOTING'))::int as live,
+             coalesce(sum(pot_lamports) filter (where status not in ('PAID','EXPIRED','OPTED_OUT')),0)::text as locked,
+             coalesce(sum(pot_lamports) filter (where status='PAID'),0)::text as paid,
+             count(*) filter (where status='PAID')::int as npaid
+        from bounties`))[0];
+    return { liveCoins: r.live, lockedLamports: r.locked, paidLamports: r.paid, bountiesPaid: r.npaid };
+  });
+
+  app.get("/api/tokens", async (req): Promise<TokenSummary[]> => {
+    const sort = (req.query as any).sort === "new" ? "t.created_at desc" : "b.pot_lamports desc";
+    return (await db.query(`${SUMMARY_SQL} order by ${sort} limit 60`)).map(toSummary);
+  });
+
+  app.get("/api/tokens/:id", async (req, reply) => {
+    const id = (req.params as any).id;
+    const r = (await db.query(`${SUMMARY_SQL} where t.id=$1 or t.mint=$1`, [id]))[0];
+    if (!r) return reply.status(404).send({ error: "not found" });
+    const s = toSummary(r);
+    const [dets, trades, round, payout, hist] = await Promise.all([
+      db.query(`select * from detections where bounty_id=$1 order by detected_at desc`, [s.bounty.id]),
+      db.query(`select * from trades where token_id=$1 order by created_at desc limit 30`, [s.token.id]),
+      db.query(`select * from vote_rounds where bounty_id=$1 order by opens_at desc limit 1`, [s.bounty.id]),
+      db.query(`select * from payouts where bounty_id=$1`, [s.bounty.id]),
+      db.query(`select created_at, (sum(pot_lamports) over (order by created_at))::text as pot from trades where token_id=$1 order by created_at`, [s.token.id]),
+    ]);
+    const step = Math.max(1, Math.ceil(hist.length / 120));
+    const detail: TokenDetail = {
+      ...s,
+      detections: dets.map(mapDetection),
+      trades: trades.map(mapTrade),
+      vote: round[0] ? { round: mapRound(round[0]), tally: await roundTally(ctx, round[0]) } : null,
+      payout: payout[0] ? mapPayout(payout[0]) : null,
+      potHistory: hist.filter((_, i) => i % step === 0 || i === hist.length - 1).map((h: any) => ({ at: iso(h.created_at), potLamports: str(h.pot) })),
+    };
+    return detail;
+  });
+
+  app.post("/api/tokens", async (req) => launch(ctx, req.body));
+
+  app.get("/api/x/lookup", async (req) => resolveTarget(ctx, String((req.query as any).handle ?? "")));
+
+  app.get("/api/profiles/:handle", async (req, reply): Promise<ProfileDetail | void> => {
+    const p = (await db.query(`select * from profiles where lower(username)=lower($1)`, [(req.params as any).handle]))[0];
+    if (!p) return reply.status(404).send({ error: "not found" });
+    const rows = (await db.query(`${SUMMARY_SQL} where b.target_x_user_id=$1 order by b.pot_lamports desc`, [p.x_user_id])).map(toSummary);
+    const sum = (f: (s: TokenSummary) => boolean) => rows.filter(f).reduce((a, s) => a + BigInt(s.bounty.potLamports), 0n).toString();
+    return {
+      profile: mapProfile(p),
+      bounties: rows,
+      lockedLamports: sum((s) => !["PAID", "EXPIRED", "OPTED_OUT"].includes(s.bounty.status)),
+      earnedLamports: sum((s) => s.bounty.status === "PAID"),
+    };
+  });
+
+  app.get("/api/feed", async (req) => {
+    const limit = Math.min(100, Number((req.query as any).limit ?? 40));
+    const types = (req.query as any).all ? "" : `where type <> 'TRADE'`;
+    return (await db.query(`select * from events ${types} order by id desc limit $1`, [limit])).map(mapEvent);
+  });
+
+  // Server-sent events: every feed event, live.
+  app.get("/api/events", (req, reply) => {
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive",
+      "Access-Control-Allow-Origin": ctx.env.webOrigin,
+    });
+    reply.raw.write(": connected\n\n");
+    const onEv = (ev: unknown) => reply.raw.write(`data: ${JSON.stringify(ev)}\n\n`);
+    const ping = setInterval(() => reply.raw.write(": ping\n\n"), 15000);
+    bus.on("event", onEv);
+    req.raw.on("close", () => { bus.off("event", onEv); clearInterval(ping); });
+  });
+
+  app.get("/api/votes/:roundId", async (req, reply) => {
+    const r = (await db.query(`select * from vote_rounds where id=$1`, [(req.params as any).roundId]))[0];
+    if (!r) return reply.status(404).send({ error: "not found" });
+    const d = (await db.query(`select * from detections where id=$1`, [r.detection_id]))[0];
+    const s = toSummary((await db.query(`${SUMMARY_SQL} where b.id=$1`, [r.bounty_id]))[0]);
+    return { round: mapRound(r), tally: await roundTally(ctx, r), detection: mapDetection(d), summary: s, voters: (r.snapshot ?? []).length };
+  });
+
+  app.post("/api/votes/:roundId", async (req, reply) => {
+    const body = z.object({ wallet: z.string(), choice: z.enum(["YES", "NO"]), signature: z.string() }).parse(req.body);
+    const roundId = (req.params as any).roundId;
+    const r = (await db.query(`select * from vote_rounds where id=$1`, [roundId]))[0];
+    if (!r || r.result !== "PENDING" || Date.parse(r.closes_at) < Date.now()) return reply.status(400).send({ error: "Vote is closed" });
+    if (!(r.snapshot ?? []).some((s: any) => s.wallet === body.wallet)) return reply.status(403).send({ error: "This wallet didn't hold the coin when the video was detected" });
+    if (!verifyVoteSignature(roundId, body.choice, body.wallet, body.signature)) return reply.status(400).send({ error: "Bad signature" });
+    await db.query(`insert into votes (round_id, wallet, choice, signature) values ($1,$2,$3,$4) on conflict (round_id, wallet) do nothing`, [
+      roundId, body.wallet, body.choice, body.signature,
+    ]);
+    return { tally: await roundTally(ctx, r) };
+  });
+
+  // ---- claim flow for public figures (X login) ----
+  app.get("/api/me/claims", async (req, reply) => {
+    const xid = xUserFrom(ctx, req);
+    if (!xid) return reply.status(401).send({ error: "Log in with X" });
+    const p = (await db.query(`select * from profiles where x_user_id=$1`, [xid]))[0];
+    if (!p) return { profile: null, bounties: [] };
+    const rows = (await db.query(`${SUMMARY_SQL} where b.target_x_user_id=$1 order by b.pot_lamports desc`, [xid])).map(toSummary);
+    const payouts = (await db.query(`select p.* from payouts p join bounties b on b.id=p.bounty_id where b.target_x_user_id=$1`, [xid])).map(mapPayout);
+    return { profile: mapProfile(p), bounties: rows, payouts };
+  });
+
+  app.post("/api/me/wallet", async (req, reply) => {
+    const xid = xUserFrom(ctx, req);
+    if (!xid) return reply.status(401).send({ error: "Log in with X" });
+    const { wallet } = z.object({ wallet: z.string().min(32).max(44) }).parse(req.body);
+    await linkWallet(ctx, xid, wallet);
+    return { ok: true };
+  });
+
+  app.post("/api/me/opt-out", async (req, reply) => {
+    const xid = xUserFrom(ctx, req);
+    if (!xid) return reply.status(401).send({ error: "Log in with X" });
+    await optOut(ctx, xid);
+    return { ok: true };
+  });
+
+  // ---- verifier + admin ----
+  app.post("/api/payouts/:id/signatures", async (req) => {
+    const b = z.object({ signer: z.string(), signature: z.string() }).parse(req.body);
+    await addSignature(ctx, (req.params as any).id, b.signer, b.signature);
+    return { ok: true };
+  });
+
+  app.post("/api/admin/payouts/:id/freeze", async (req, reply) => {
+    if (!ctx.env.adminKey || req.headers["x-admin-key"] !== ctx.env.adminKey) return reply.status(401).send({ error: "admin only" });
+    await freeze(ctx, (req.params as any).id);
+    return { ok: true };
+  });
+
+  app.get("/api/bounties/:id/audit", async (req) => {
+    return (await db.query(`select * from audit_log where bounty_id=$1 order by id`, [(req.params as any).id])).map((r: any) => ({
+      from: r.from_status, to: r.to_status, reason: r.reason, postId: r.post_id, at: iso(r.at),
+    }));
+  });
+}
