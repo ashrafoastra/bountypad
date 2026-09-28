@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FeedEvent } from "@bountypad/shared";
+import type { FeedEvent, Health } from "@bountypad/shared";
 
 export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -64,5 +64,5 @@ export function useLive<T>(path: string | null, opts: { every?: number; on?: (e:
 }
 
 export function useHealth() {
-  return useLive<{ ok: boolean; sim: boolean; solUsd: number; privy: boolean }>("/api/health", { every: 60000, on: () => false });
+  return useLive<Health>("/api/health", { every: 60000, on: () => false });
 }

@@ -1,3 +1,4 @@
+import { upsertProfile } from "./db/repo";
 import type { FastifyRequest } from "fastify";
 import type { Ctx } from "./app";
 
@@ -33,9 +34,15 @@ export async function identify(ctx: Ctx, req: FastifyRequest): Promise<Caller | 
       return null;
     }
   }
-  if (ctx.env.sim) {
+  // Dev login (simulated X only): pretend to be one of the simulated X accounts.
+  if (ctx.env.devTools && ctx.mockX) {
     const dev = req.headers["x-dev-x-user-id"] as string | undefined;
-    if (dev) return { via: "dev", xUserId: dev, wallets: [] };
+    const u = dev ? ctx.mockX.userById(dev) : null;
+    if (u) {
+      // Same as a real X login: the profile exists from the first login, even before any coin names them.
+      await upsertProfile(ctx.db, u);
+      return { via: "dev", xUserId: u.id, wallets: [] };
+    }
   }
   return null;
 }

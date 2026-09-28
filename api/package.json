@@ -8,13 +8,20 @@
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:privy": "tsx scripts/test-privy.ts"
+    "test:privy": "tsx scripts/test-privy.ts",
+    "chain:setup": "tsx scripts/chain-setup.ts",
+    "test:chain": "SOLANA_TEST_RPC=${SOLANA_TEST_RPC:-http://127.0.0.1:8899} vitest run test/chain.test.ts"
   },
   "dependencies": {
     "@bountypad/shared": "*",
+    "@coral-xyz/anchor": "^0.31.1",
     "@electric-sql/pglite": "^0.5.8",
     "@fastify/cors": "^11.3.0",
+    "@meteora-ag/dynamic-bonding-curve-sdk": "^1.5.13",
     "@privy-io/node": "^0.35.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "bn.js": "^5.2.5",
     "bs58": "^6.0.0",
     "dotenv": "^18.0.4",
     "fastify": "^5.12.5",
@@ -23,10 +30,11 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/bn.js": "^5.2.0",
     "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
+    "typescript": "^5.9.3",
     "vitest": "^5.0.2"
   }
 }

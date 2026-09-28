@@ -130,3 +130,41 @@ create table if not exists events (
   data jsonb not null default '{}',
   at timestamptz not null default now()
 );
+
+-- ---- on-chain (CHAIN=solana) ----
+alter table tokens add column if not exists pool text;
+alter table tokens add column if not exists launch_tx text;
+alter table bounties add column if not exists onchain_status int;
+
+-- A launch transaction handed to the creator's wallet, waiting for their signature.
+create table if not exists pending_launches (
+  id text primary key,
+  mint text not null unique,
+  input jsonb not null,
+  message_hash text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+-- Every partner-fee claim and the pot share deposited into the escrow with it (same transaction).
+create table if not exists fee_claims (
+  id bigserial primary key,
+  token_id text not null references tokens(id),
+  claimed_lamports numeric not null,
+  pot_lamports numeric not null,
+  tx_sig text not null,
+  at timestamptz not null default now()
+);
+create index if not exists fee_claims_token on fee_claims (token_id, at);
+
+-- Expired / opted-out pots: SOL swept to the treasury, coin bought and burned.
+create table if not exists burns (
+  id bigserial primary key,
+  bounty_id text not null references bounties(id),
+  lamports numeric not null,
+  sweep_tx text not null,
+  buy_tx text,
+  burn_tx text,
+  burned_tokens numeric,
+  at timestamptz not null default now()
+)

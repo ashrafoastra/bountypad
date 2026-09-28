@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { Stats, TokenDetail, TokenSummary, ProfileDetail } from "@bountypad/shared";
+import type { Health, Stats, TokenDetail, TokenSummary, ProfileDetail } from "@bountypad/shared";
+import { ESCROW_PROGRAM_ID } from "../chain/escrow";
+import { LAUNCHPAD } from "../chain/launchpad";
 import type { Ctx } from "../app";
 import { iso, str } from "../db";
 import { mapBounty, mapDetection, mapEvent, mapPayout, mapProfile, mapRound, mapToken, mapTrade } from "../db/repo";
@@ -32,7 +34,12 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     return reply.status(err.statusCode ?? 500).send({ error: err.message ?? "server error" });
   });
 
-  app.get("/api/health", async () => ({ ok: true, sim: ctx.env.sim, solUsd: ctx.env.solUsd, privy: !!ctx.privy }));
+  app.get("/api/health", async (): Promise<Health> => ({
+    ok: true, sim: ctx.env.sim, xMode: ctx.env.xMode, chain: ctx.env.chain,
+    cluster: ctx.chain?.cluster ?? null, escrowProgram: ctx.chain ? ESCROW_PROGRAM_ID.toBase58() : null,
+    dbcConfig: ctx.chain ? ctx.env.solana.dbcConfig : null, devTools: ctx.env.devTools, solUsd: ctx.env.solUsd, privy: !!ctx.privy,
+    feeSchedule: ctx.chain ? { startingFeeBps: LAUNCHPAD.startingFeeBps, endingFeeBps: LAUNCHPAD.endingFeeBps, decaySeconds: LAUNCHPAD.feeDecaySeconds } : null,
+  }));
 
   app.get("/api/stats", async (): Promise<Stats> => {
     const r = (await db.query(`
@@ -59,7 +66,10 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
       db.query(`select * from trades where token_id=$1 order by created_at desc limit 30`, [s.token.id]),
       db.query(`select * from vote_rounds where bounty_id=$1 order by opens_at desc limit 1`, [s.bounty.id]),
       db.query(`select * from payouts where bounty_id=$1`, [s.bounty.id]),
-      db.query(`select created_at, (sum(pot_lamports) over (order by created_at))::text as pot from trades where token_id=$1 order by created_at`, [s.token.id]),
+      ctx.chain
+        // On-chain: the pot grows when the keeper claims fees into the escrow.
+        ? db.query(`select at as created_at, (sum(pot_lamports) over (order by at))::text as pot from fee_claims where token_id=$1 order by at`, [s.token.id])
+        : db.query(`select created_at, (sum(pot_lamports) over (order by created_at))::text as pot from trades where token_id=$1 order by created_at`, [s.token.id]),
     ]);
     const step = Math.max(1, Math.ceil(hist.length / 120));
     const detail: TokenDetail = {

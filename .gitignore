@@ -6,3 +6,9 @@ dist
 !.env.example
 api/.data
 *.log
+programs/target
+programs/keys/*.json
+programs/test-ledger
+.devnet
+api/.chain
+programs/.fixtures

@@ -1,6 +1,6 @@
 # Bounty Pad: Project Brief for Claude Code
 
-> Working name: **Bounty Pad**. Status: pre-build (nothing deployed yet). Last updated: 2026-09-28.
+> Working name: **Bounty Pad**. Status: app + escrow program built and tested on a local Solana validator; devnet deploy with `npm run chain:setup -w api`. Last updated: 2026-09-29.
 > Read this whole file before doing anything. It is the single source of truth for what we are building.
 > If something you are asked to do contradicts this file, stop and ask.
 
@@ -63,7 +63,7 @@ When working in this repo, **stay inside the folder of the task you were given**
 - **Launch mechanism:** **Meteora Dynamic Bonding Curve (DBC)**. We are the "partner" (launchpad) and create our own config key. Tokens graduate to **Meteora DAMM v2**.
   - DBC fee facts: a fixed 20% of each trading fee goes to the DBC protocol; the remaining **80% goes to the partner (us)**, which can be shared with the token creator.
   - At least 10% of liquidity must remain locked at day 1 after migration (DBC requirement).
-  - Use DBC's **fee time scheduler** (high fee at launch that decays) and **rate limiter** as anti-sniper protection.
+  - Use DBC's **fee time scheduler** (high fee at launch that decays) as anti-sniper protection. (Meteora deprecated the rate limiter for new configs.)
   - Docs: https://docs.meteora.ag/overview/products/dbc/what-is-dbc
 - **On-chain programs:** Rust + Anchor framework.
 - **Backend:** TypeScript on Node. Postgres database. Scheduled jobs (keeper) for fee claims, watching X, rechecks, payouts.

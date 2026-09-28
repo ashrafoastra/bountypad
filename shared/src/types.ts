@@ -43,6 +43,11 @@ export interface Token {
   creatorWallet: string;
   /** The coin's official launch post on X (needed for QUOTE_LAUNCH). */
   launchPostId: string | null;
+  /** CHAIN=solana: the Meteora bonding-curve pool and the launch transaction. Null in SIM. */
+  pool: string | null;
+  launchTx: string | null;
+  /** CHAIN=solana: the escrow account holding this coin's pot (PDA of the mint). */
+  escrow: string | null;
   createdAt: string;
 }
 
@@ -142,7 +147,11 @@ export type FeedEventType =
   | "VOTE_OPENED"
   | "VOTE_CLOSED"
   | "PAYOUT_SENT"
-  | "BOUNTY_EXPIRED";
+  | "BOUNTY_EXPIRED"
+  /** CHAIN=solana: trading fees claimed and the pot share locked in the escrow. */
+  | "POT_FUNDED"
+  /** CHAIN=solana: an expired / opted-out pot bought the coin and burned it. */
+  | "POT_BURNED";
 
 export interface FeedEvent {
   id: number;

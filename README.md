@@ -48,36 +48,61 @@ npm run test:privy -w api -- your_x_handle
 ```
 It creates (or finds) a Privy user tied to your X account with a Solana wallet and prints the address. Then log in on the site with that X account: if the account menu shows the **same** wallet, Test A passes. Set `PRIVY_PREGENERATE=true` in `api/.env`, and verified bounties then pay straight into a wallet tied to the target's X account.
 
+## Real Solana (devnet)
+
+The coin launch, trades, the locked pot and the payout run on Solana with `CHAIN=solana`. The X part can stay simulated (no X API key needed) so you can post as the target from **/dev**.
+
+**One-time setup (about 10 minutes):**
+1. Install the Solana CLI: `sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"`, then open a new terminal and check `solana --version`.
+2. Make sure `programs/keys/bounty_escrow-keypair.json` exists (the escrow program's address key; ask the on-chain dev, never commit it).
+3. `npm install` at the repo root.
+4. `npm run chain:setup -w api`
+   - The first run creates the platform keys in `api/.chain/devnet/` (never commit this folder) and prints the **keeper** address.
+   - If it says the keeper needs SOL, get 5 devnet SOL for that address at https://faucet.solana.com, then run it again.
+   - It deploys the escrow program, creates our Meteora launchpad config and the escrow config, and writes everything into `api/.env` (`CHAIN=solana`).
+5. Restart both servers. The top bar shows **DEVNET · SIM X**.
+
+**Using it:**
+- Connect a wallet (Privy). With Phantom, turn on Settings → Developer settings → Testnet mode (devnet).
+- Your wallet needs devnet SOL too (faucet.solana.com, or the "Get test SOL" button when dev tools are on).
+- **Launch:** one signature creates the coin on Meteora's bonding curve **and** its challenge in the escrow program, in the same transaction.
+- **Trade** on the coin page. The keeper claims trading fees every minute and locks the pot's share in the escrow ("Locked in escrow ↗" opens it on Solscan).
+- **/dev:** post as the target. The pipeline verifies the post, the escrow verifies it on-chain with 2 of 3 signatures, and after the challenge window the pot is paid on-chain. If the target has no wallet yet, it waits until they log in on **/claim**.
+- To go back to the full simulation: `CHAIN=sim` in `api/.env`.
+
+**Real X:** put `X_BEARER_TOKEN=...` in `api/.env` (from developer.x.com). Target lookups and post detection then use the real X API, which is pay-per-use.
+
+**Tests:**
+```bash
+npm test -w api                              # 59 rule + lifecycle tests (no chain needed)
+programs/scripts/start-local-validator.sh    # terminal 2: local Solana with Meteora + escrow
+npm run test:chain -w api                    # 12 on-chain escrow + Meteora tests
+```
+Full HTTP scenarios against a running API (localnet or devnet, simulated X): `npx tsx api/scripts/e2e-chain.ts`, `e2e-chain-2.ts` and `e2e-chain-3.ts`.
+
 ## Repo
 
 | Folder | Owner | What's in it |
 |---|---|---|
-| `shared/` | all 3 | Types, API contract, rule defaults (`config.ts`), fee split, validation. **DRAFT** until the team approves. |
-| `api/` | backend | Fastify API, Postgres schema, X adapter, verification pipeline, voting, payouts, jobs, simulator |
-| `web/` | frontend | Next.js app: home, launch, token, vote, profile, claim, dev console |
-| `programs/` | on-chain | Empty. Escrow program comes next (see below). |
-| `docs/` | all 3 | `decisions.md` |
+| `shared/` | all 3 | Types, API contract, rule defaults, fee split, validation, `idl/bounty_escrow.json`. **DRAFT** until the team approves. |
+| `api/` | backend | Fastify API, Postgres schema, X adapter, verification pipeline, voting, payouts, jobs, simulator, `src/chain/` (Solana: launchpad, escrow client, keeper) |
+| `web/` | frontend | Next.js app: home, launch, token (trade panel), vote, profile, claim, dev console |
+| `programs/` | on-chain | `escrow/` Anchor program, `build/bounty_escrow.so`, `scripts/start-local-validator.sh` |
+| `docs/` | all 3 | `decisions.md` (every rule, including the on-chain ones) |
 
 ### API layout
 - `api/src/core/` pure rule logic, fully unit-tested: verifier, 24h recheck, search queries, phrase matching, vote tally, payout attestation, status machine.
-- `api/src/services/` launch, pipeline (watch → recheck → vote → verify), payouts.
+- `api/src/services/` launch (sim + on-chain prepare/submit), pipeline (watch → recheck → vote → verify), payouts, `onchain.ts` (keeper fee claims, escrow sync, burns).
+- `api/src/chain/` `launchpad.ts` (Meteora curve settings, launch transaction, fee claims, swaps), `escrow.ts` (program client), `attestation.ts` (the 131-byte message + ed25519 instruction), `service.ts`.
 - `api/src/x/real.ts` X API v2 adapter. `api/src/sim/` mock X + simulator.
-- `api/src/adapters.ts` pluggable edges: video transcription (Whisper), holder snapshots, on-chain payout executor.
 
-```bash
-npm test            # 28 rule tests
-npm run typecheck
-```
-
-## Real mode
-
-Set in `api/.env` (see `api/.env.example`): `X_BEARER_TOKEN`, `DATABASE_URL`, `VERIFIER_SECRET_KEY`, `VERIFIER_ALLOWED_SIGNERS`, `WHISPER_URL`. Real mode still needs these pieces before it can run end to end:
-
-| Missing piece | Owner | Status |
-|---|---|---|
-| Escrow program (hold pot, verify 2-of-3 ed25519 attestation, release, burn) | on-chain | not started; attestation byte format is fixed in `api/src/core/payout.ts` |
-| Meteora DBC launch from the web (creates the mint) | on-chain + frontend | API accepts `mint` in REAL mode |
-| Keeper claiming DBC partner fees into pots | on-chain + backend | sim adds pot on each trade |
-| Holder snapshots from chain (exclude pool/creator/platform) | backend | `HolderSource` interface ready |
-| Privy | frontend + backend | built; needs your Privy app keys + Test A |
-| Launch post from the @BountyPad account (for quote bounties) | backend | disabled in REAL mode |
+## Before mainnet
+| Item | Owner |
+|---|---|
+| Move the program upgrade authority, escrow admin, fee claimer and treasury to the 2-of-3 Squads multisig | on-chain |
+| Backup verifier as a separate service (today both verifier keys run in the API) | backend |
+| Confirm the fee split, curve and anti-sniper numbers (docs/decisions.md) | all 3 |
+| Fee claimer = program PDA (trustless Test B) instead of the keeper | on-chain |
+| Buy-and-burn for coins that graduated to DAMM v2; claim DAMM v2 LP fees into pots | on-chain + backend |
+| Publish the launch post on X (needed for quote challenges) and the Whisper service for videos | backend |
+| External audit, bug bounty, capped launch (CLAUDE.md §8) | all 3 |

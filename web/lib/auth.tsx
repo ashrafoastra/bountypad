@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
-import { toSolanaWalletConnectors, useSignMessage, useWallets } from "@privy-io/react-auth/solana";
+import { toSolanaWalletConnectors, useSignMessage, useSignTransaction, useWallets } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
 import { API } from "./api";
 
@@ -28,6 +28,8 @@ export interface Auth {
   logout: () => Promise<void>;
   /** Sign a UTF-8 message with the active wallet; returns a base58 ed25519 signature. */
   signMessage: (text: string) => Promise<string>;
+  /** Sign a transaction the API prepared (base64 in, base64 out). The API sends it. */
+  signTransaction: (base64: string) => Promise<string>;
   /** Headers proving who the caller is, for /api/me/* routes. */
   authHeaders: () => Promise<Record<string, string>>;
   /** DEV only: pretend to be this X account. */
@@ -35,6 +37,10 @@ export interface Auth {
 }
 
 const Ctx = createContext<Auth | null>(null);
+/** Which Solana network Privy should show when signing ("solana:devnet" until mainnet is approved). */
+const SOLANA_CHAIN = (process.env.NEXT_PUBLIC_SOLANA_CHAIN || "solana:devnet") as "solana:devnet" | "solana:mainnet";
+const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+const bytesToB64 = (bytes: Uint8Array) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
 
 export function useAuth(): Auth {
@@ -70,6 +76,7 @@ function PrivyAuth({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, user, login, logout, getAccessToken, linkTwitter } = usePrivy();
   const { wallets } = useWallets();
   const { signMessage } = useSignMessage();
+  const { signTransaction } = useSignTransaction();
   const wallet = wallets[0] ?? null;
   const tw = user?.twitter;
 
@@ -87,13 +94,18 @@ function PrivyAuth({ children }: { children: React.ReactNode }) {
       const { signature } = await signMessage({ message: new TextEncoder().encode(text), wallet });
       return bs58.encode(signature);
     },
+    signTransaction: async (b64) => {
+      if (!wallet) throw new Error("Connect a wallet first");
+      const { signedTransaction } = await signTransaction({ transaction: b64ToBytes(b64), wallet, chain: SOLANA_CHAIN });
+      return bytesToB64(signedTransaction);
+    },
     authHeaders: async () => {
       const t = await getAccessToken();
       const h: Record<string, string> = {};
       if (t) h.Authorization = `Bearer ${t}`;
       return h;
     },
-  }), [ready, authenticated, wallet, tw, login, logout, linkTwitter, signMessage, getAccessToken]);
+  }), [ready, authenticated, wallet, tw, login, logout, linkTwitter, signMessage, signTransaction, getAccessToken]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -134,6 +146,13 @@ function DevAuth({ children }: { children: React.ReactNode }) {
       const b = await r.json();
       if (!r.ok) throw new Error(b.error ?? "sign failed");
       return b.signature;
+    },
+    signTransaction: async (b64) => {
+      if (!wallet) throw new Error("Connect a wallet first");
+      const r = await fetch(API + "/api/dev/sign-tx", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet, transaction: b64 }) });
+      const b = await r.json();
+      if (!r.ok) throw new Error(b.error ?? "sign failed");
+      return b.signedTransaction;
     },
     authHeaders: async () => {
       const h: Record<string, string> = {};

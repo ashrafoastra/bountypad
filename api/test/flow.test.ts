@@ -26,7 +26,7 @@ beforeEach(async () => {
   const db = await createDb("", { memory: true });
   x = new MockX();
   ctx = {
-    db, x, mockX: x, video: new SimVideo(x), holders: new DbHolders(db), payouts: new SimPayouts(), privy: null,
+    db, x, mockX: x, video: new SimVideo(x), holders: new DbHolders(db), payouts: new SimPayouts(), privy: null, chain: null,
     env: { ...env, sim: true, privyPregenerate: false, timing: { ...env.timing, recheckAfterSec: 3600, voteWindowSec: 3600, challengeWindowSec: 3600, deadlineGraceSec: 600 } },
   };
 });

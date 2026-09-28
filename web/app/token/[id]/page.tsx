@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import type { TokenDetail } from "@bountypad/shared";
@@ -8,10 +8,13 @@ import { api, useHealth, useLive } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { actionText, ago, countdown, fmtSol, fmtUsd, short, sol } from "@/lib/format";
 import { VoteBars } from "@/components/VoteBars";
+import { TradePanel } from "@/components/TradePanel";
+import { explorer } from "@/lib/chain";
 import { Avatar, CheckList, Counter, ErrorNote, PostCard, Section, Skeleton, Sparkline, StatusPill, StatusTimeline, Verified } from "@/components/ui";
 
 export default function TokenPage() {
   const { id } = useParams<{ id: string }>();
+  const launchedTx = useSearchParams().get("launched");
   const { data: health } = useHealth();
   const auth = useAuth();
   const [buyMsg, setBuyMsg] = useState<string | null>(null);
@@ -43,6 +46,14 @@ export default function TokenPage() {
         <div className="ml-auto"><StatusPill status={bounty.status} big /></div>
       </div>
 
+      {launchedTx && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-green/40 bg-green/[.07] px-4 py-3 text-sm flex flex-wrap items-center gap-2">
+          <span className="text-green font-semibold">Launched on Solana.</span>
+          <span className="text-mute">The coin and its challenge were created in one transaction.</span>
+          <a className="underline text-green ml-auto" target="_blank" rel="noreferrer" href={explorer(health, "tx", launchedTx)}>View transaction</a>
+        </motion.div>
+      )}
+
       {!paid && (
         <div className="rounded-xl border border-line bg-white/[.02] px-4 py-2.5 text-sm text-mute">
           Not affiliated with @{target.username}. They haven't agreed to anything unless they complete the challenge.
@@ -55,7 +66,11 @@ export default function TokenPage() {
           <div className="card p-6 sm:p-8 relative overflow-hidden">
             <div className="flex items-center justify-between">
               <span className="text-mute text-xs font-mono uppercase tracking-widest">Bounty pot</span>
-              <span className={`text-xs font-medium rounded-full px-3 py-1 border ${paid ? "text-green border-green/40 bg-green/10" : "text-gold border-gold/40 bg-gold/10"}`}>{paid ? "Released" : "Locked on-chain"}</span>
+              {token.escrow ? (
+                <a target="_blank" rel="noreferrer" href={explorer(health, "account", token.escrow)} className={`text-xs font-medium rounded-full px-3 py-1 border hover:brightness-125 ${paid ? "text-green border-green/40 bg-green/10" : "text-gold border-gold/40 bg-gold/10"}`}>{paid ? "Released" : "Locked in escrow ↗"}</a>
+              ) : (
+                <span className={`text-xs font-medium rounded-full px-3 py-1 border ${paid ? "text-green border-green/40 bg-green/10" : "text-gold border-gold/40 bg-gold/10"}`}>{paid ? "Released" : "Locked (simulated)"}</span>
+              )}
             </div>
             <div className="flex flex-wrap items-baseline gap-x-3 mt-3">
               <Counter value={pot} format={(v) => v.toFixed(4)} className="text-gold glow-gold text-[56px] sm:text-[80px] font-bold tracking-[-0.04em] leading-none" />
@@ -129,20 +144,29 @@ export default function TokenPage() {
             </div>
           </div>
 
-          {["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(bounty.status) && (
+          {health?.chain === "solana" ? <TradePanel token={token} health={health} /> : ["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(bounty.status) && (
             <div className="card p-6">
               <div className="text-mute text-xs font-mono uppercase tracking-widest mb-3">Trade</div>
-              {health?.sim ? (<>
-                <p className="text-sm text-mute mb-4">Simulation: buy with your connected wallet to become a holder (and vote on video challenges).</p>
-                {auth.wallet ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {[0.5, 1, 5].map((v) => (
-                      <button key={v} className="btn btn-ghost h-11 text-sm" onClick={async () => { try { await api("/api/dev/buy", { method: "POST", json: { tokenId: token.id, wallet: auth.wallet, sol: v } }); setBuyMsg(`Bought ${v} SOL of $${token.ticker}`); } catch (e) { setBuyMsg((e as Error).message); } }}>Buy {v} SOL</button>
-                    ))}
-                  </div>
-                ) : <button className="btn btn-primary w-full" onClick={auth.login}>Connect wallet to trade</button>}
-                {buyMsg && <p className="text-green text-sm mt-3">{buyMsg}</p>}
-              </>) : <p className="text-sm text-mute">Trading opens with the on-chain launch (Meteora bonding curve).</p>}
+              <p className="text-sm text-mute mb-4">Simulation: buy with your connected wallet to become a holder (and vote on video challenges).</p>
+              {auth.wallet ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {[0.5, 1, 5].map((v) => (
+                    <button key={v} className="btn btn-ghost h-11 text-sm" onClick={async () => { try { await api("/api/dev/buy", { method: "POST", json: { tokenId: token.id, wallet: auth.wallet, sol: v } }); setBuyMsg(`Bought ${v} SOL of $${token.ticker}`); } catch (e) { setBuyMsg((e as Error).message); } }}>Buy {v} SOL</button>
+                  ))}
+                </div>
+              ) : <button className="btn btn-primary w-full" onClick={auth.login}>Connect wallet to trade</button>}
+              {buyMsg && <p className="text-green text-sm mt-3">{buyMsg}</p>}
+            </div>
+          )}
+
+          {token.pool && (
+            <div className="card p-6">
+              <div className="text-mute text-xs font-mono uppercase tracking-widest mb-3">On-chain</div>
+              <div className="flex flex-col gap-2 text-sm">
+                {([["Coin", "token", token.mint], ["Bonding curve pool", "account", token.pool], ["Escrow (the pot)", "account", token.escrow], ["Launch transaction", "tx", token.launchTx]] as const).map(([k, kind, v]) => v && (
+                  <a key={k} target="_blank" rel="noreferrer" href={explorer(health, kind, v)} className="flex justify-between gap-3 hover:text-green transition-colors"><span className="text-mute">{k}</span><span className="font-mono">{short(v, 5)} ↗</span></a>
+                ))}
+              </div>
             </div>
           )}
 
@@ -168,7 +192,9 @@ export default function TokenPage() {
                 {d.payout.status === "SENT" && <>Sent to {short(d.payout.wallet ?? "", 5)}</>}
               </div>
               {d.payout.signatures.length > 0 && <div className="text-xs text-dim mt-2 font-mono">{d.payout.signatures.length} of 3 verifier signatures</div>}
-              {d.payout.txSig && <div className="text-xs font-mono text-green mt-2 break-all">tx {short(d.payout.txSig, 10)}</div>}
+              {d.payout.txSig && (token.pool
+                ? <a target="_blank" rel="noreferrer" href={explorer(health, "tx", d.payout.txSig)} className="text-xs font-mono text-green mt-2 break-all block underline">tx {short(d.payout.txSig, 10)} ↗</a>
+                : <div className="text-xs font-mono text-green mt-2 break-all">tx {short(d.payout.txSig, 10)}</div>)}
             </div>
           )}
 
@@ -179,7 +205,7 @@ export default function TokenPage() {
                   <span className={`w-10 font-semibold ${t.side === "BUY" ? "text-green" : "text-red"}`}>{t.side === "BUY" ? "Buy" : "Sell"}</span>
                   <span className="font-mono text-mute text-xs">{short(t.wallet)}</span>
                   <span className="tabular">{fmtSol(t.solLamports)} SOL</span>
-                  <span className="ml-auto text-gold tabular text-xs">+{fmtSol(t.potLamports, 4)}</span>
+                  {!token.pool && <span className="ml-auto text-gold tabular text-xs">+{fmtSol(t.potLamports, 4)}</span>}
                 </div>
               ))}
             </div>

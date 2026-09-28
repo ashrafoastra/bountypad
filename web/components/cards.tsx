@@ -60,6 +60,8 @@ const EV: Record<string, { d: string; color: string }> = {
   PAYOUT_SENT: { d: P.coin, color: "#f7c75a" },
   BOUNTY_EXPIRED: { d: P.clock, color: "#8b909a" },
   TRADE: { d: P.dot, color: "#8b909a" },
+  POT_FUNDED: { d: P.coin, color: "#f7c75a" },
+  POT_BURNED: { d: P.clock, color: "#ff6b7a" },
 };
 
 export function feedText(e: FeedEvent): string {
@@ -74,6 +76,8 @@ export function feedText(e: FeedEvent): string {
     case "VOTE_CLOSED": return `${t} vote ${String(d.outcome).toLowerCase().replace("_", " ")} (${d.yesPct}% yes)`;
     case "PAYOUT_SENT": return `${fmtSol(d.amountLamports, 3)} SOL sent to @${d.target}`;
     case "BOUNTY_EXPIRED": return `${t} bounty expired`;
+    case "POT_FUNDED": return `${fmtSol(d.potLamports, 4)} SOL locked in the ${t} pot`;
+    case "POT_BURNED": return `${t} pot (${fmtSol(d.lamports, 3)} SOL) bought and burned`;
     case "TRADE": return `${d.side === "BUY" ? "Buy" : "Sell"} ${fmtSol(d.solLamports)} SOL of ${t}`;
     default: return e.type;
   }

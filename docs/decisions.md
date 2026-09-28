@@ -42,3 +42,28 @@ Full lifecycle is covered by `api/test/flow.test.ts` (runs on an in-memory datab
 | Jobs re-check the bounty's status before acting | A vote closing on an already-frozen or opted-out bounty is cancelled, not applied. |
 | Video phrase score = the lower of (sequence similarity, how much of the phrase's words were actually spoken) | Character similarity alone scored random speech ~30-50%, sending unrelated videos to a vote. "I am going to the gym" vs "I am holding Jax coin" now scores 18 (auto-reject). Transcripts' "im"/"I'm" count as "I am". |
 | `shared/types.ts`: `BEFORE_DEADLINE` check id, `CANCELLED` vote result | **Needs approval from all 3** (contract change). |
+
+## On-chain build (2026-09-29)
+
+Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hngg7a6YL5KPYaicKyzbk7AjRQ1Y`. Meteora DBC `dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN` (same id on devnet and mainnet). Tested on a local validator running the real Meteora program built from its source: `npm run test:chain -w api` (12 program tests) and `api/scripts/e2e-chain*.ts` (3 full HTTP scenarios).
+
+| Decision | Why |
+|---|---|
+| One `Bounty` account per coin (PDA of the mint) holds the pot in lamports | Nobody but the program can move it. No token accounts needed: fees are paid in SOL. |
+| The launch is ONE transaction: Meteora pool + `create_bounty` | A coin can never exist on-chain without its challenge. `create_bounty` checks the pool is a real Meteora pool made with OUR config, for this mint, by this creator. |
+| Terms (target X user id, action, sha256 of the phrase, deadline) written once, never editable | CLAUDE.md §6.1.6. The API re-checks them against the prepared launch before recording the coin. |
+| `verify` needs 2 of 3 ed25519 attestations (main, backup, admin key) over a 131-byte message (`BOUNTYPAD1`, kind, program, bounty, target, post, wallet, expiry) | CLAUDE.md §6.6. Checked with Solana's ed25519 program + instruction introspection; only signatures whose data sits inside the ed25519 instruction count. Duplicate signers count once. |
+| Release is permissionless after the on-chain challenge window, only to the attested wallet | Anyone (our keeper, or the target) can push it; nobody can redirect it. |
+| Path 2: `verify` with no wallet, then `assign_wallet` (2 of 3) when the target logs in | The pot waits in the escrow, not with us. |
+| Fees that arrive after payment go to the same target; after expiry / opt-out to the burn treasury | A settled bounty still earns; unverified pots never reach holders (§6.2). |
+| Expiry on-chain = deadline + grace, grace = recheck + 2 × vote window + 1h | A post made before the deadline can still finish its 24h recheck and a vote (plus extension) and be verified. The API still rejects posts made after the deadline. |
+| Expired / opted-out pots: swept to the treasury, keeper buys the coin on the curve and burns it | §6.2 "burned". Graduated coins (DAMM v2) are logged for a manual buy for now. |
+| **Test B result: keeper fallback.** The keeper (DBC fee claimer) claims partner fees and deposits 5/8 into the escrow **in the same transaction**, capped at the amount it read | The deposit always matches the claim. The fully trustless version (fee claimer = program PDA via CPI) is a later upgrade. |
+| Fee split on-chain: `creatorTradingFeePercentage = 20` (Meteora pays the creator directly), the partner claim is split pot 5/8, platform 3/8 | Equals the 50 / 30 / 20 of our 80% (§6.2). Proposal: confirm before mainnet. |
+| Launchpad curve (PROPOSAL): 1B supply, 6 decimals, 30 → 400 SOL market cap, graduates to DAMM v2, LP 100% permanently locked with the platform | §11 open decision. Locked LP keeps earning fees after graduation. |
+| Anti-sniper: exponential fee scheduler 50% → 1% over 120 s; the creator's first buy in the launch transaction pays the low fee | Meteora deprecated the rate limiter for new configs (SDK 1.5), so the fee scheduler is the tool. Proposal: tune. The UI shows the current fee. |
+| The database is the brain, the chain is the executor: `syncBounties` pushes verify / freeze / unfreeze / cancel / opt-out / expire to the escrow and reads the real pot back | One status machine (already tested), mirrored on-chain; one action per coin at a time. |
+| The API builds transactions, the user's wallet signs, the API sends | No RPC needed in the browser; the API checks the signed message is exactly the one it prepared. |
+| Program upgrade authority, escrow admin, fee claimer and burn treasury = the keeper key on devnet | MUST move to the 2-of-3 Squads multisig before mainnet (§4). |
+| X and chain are separate switches: `X_BEARER_TOKEN` → real X; `CHAIN=solana` → real Solana | Real X can be tested with the simulated chain and the other way round. |
+| `shared/` changes: Token.pool/launchTx/escrow, Health, PreparedLaunch/PreparedTrade, feed events POT_FUNDED / POT_BURNED, launch `firstBuySol` | **Needs approval from all 3.** |

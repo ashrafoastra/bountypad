@@ -2,6 +2,8 @@ import type { Ctx } from "../app";
 import { watch, rechecks, closeVotes, expire } from "../services/pipeline";
 import { releaseDue } from "../services/payouts";
 import { simTradeTick } from "../sim/sim";
+import { claimFees, syncBounties } from "../services/onchain";
+import { reconcileLaunches } from "../services/launch";
 
 /** Single-process scheduler. Each job never overlaps with itself. */
 function every(name: string, sec: number, fn: () => Promise<void>) {
@@ -23,6 +25,15 @@ export function startJobs(ctx: Ctx) {
     every("payouts", 5, () => releaseDue(ctx)),
     every("expire", 60, () => expire(ctx)),
   ];
-  if (ctx.env.sim) timers.push(every("sim-trades", t.tradeSimEverySec, () => simTradeTick(ctx)));
+  if (ctx.chain) {
+    const s = ctx.env.solana;
+    timers.push(
+      every("launches", 15, () => reconcileLaunches(ctx)),
+      every("keeper-fees", s.keeperEverySec, () => claimFees(ctx)),
+      every("chain-sync", s.syncEverySec, () => syncBounties(ctx)),
+    );
+  } else if (ctx.env.sim) {
+    timers.push(every("sim-trades", t.tradeSimEverySec, () => simTradeTick(ctx)));
+  }
   return () => timers.forEach(clearInterval);
 }

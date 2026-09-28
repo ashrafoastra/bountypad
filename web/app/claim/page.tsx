@@ -20,8 +20,8 @@ export default function Claim() {
   const [paste, setPaste] = useState("");
 
   useEffect(() => {
-    if (auth.mode === "dev" && health?.sim) api<SimUser[]>("/api/dev/users").then((u) => setUsers(u.filter((x) => !x.protected && !x.parody))).catch(() => {});
-  }, [auth.mode, health?.sim]);
+    if (auth.mode === "dev" && health?.xMode === "mock") api<SimUser[]>("/api/dev/users").then((u) => setUsers(u.filter((x) => !x.protected && !x.parody))).catch(() => {});
+  }, [auth.mode, health?.xMode]);
 
   const load = useCallback(async () => {
     if (!auth.x) { setMe(null); return; }
@@ -108,7 +108,7 @@ export default function Claim() {
         {me && me.bounties.length === 0 && (
           <div className="card p-6 text-mute">
             No coins name you yet.
-            {health?.sim && <> In simulation you can <Link href="/launch" className="text-green">launch one targeting @{auth.x.username}</Link> and post as yourself from <Link href="/dev" className="text-green">Dev</Link>.</>}
+            {health?.xMode === "mock" && <> In simulation you can <Link href="/launch" className="text-green">launch one targeting @{auth.x.username}</Link> and post as yourself from <Link href="/dev" className="text-green">Dev</Link>.</>}
           </div>
         )}
         {me?.bounties.map((s) => {

@@ -6,6 +6,7 @@ import { isSolanaAddress } from "../core/solana";
 import { RULES } from "@bountypad/shared";
 import { setStatus } from "./status";
 import { emit } from "./events";
+import { releaseOnchain } from "./onchain";
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[payouts]", ...a);
 
@@ -26,7 +27,7 @@ export async function startChallenge(ctx: Ctx, q: Q, bountyId: string, postId: s
  */
 export async function releaseDue(ctx: Ctx) {
   const due = await ctx.db.query(
-    `select p.*, b.target_x_user_id, b.verified_post_id, b.token_id, b.id as bid, pr.linked_wallet, pr.username, pr.name as target_name, t.ticker
+    `select p.*, b.target_x_user_id, b.verified_post_id, b.token_id, b.id as bid, pr.linked_wallet, pr.username, pr.name as target_name, t.ticker, t.mint
        from payouts p join bounties b on b.id=p.bounty_id join profiles pr on pr.x_user_id=b.target_x_user_id join tokens t on t.id=b.token_id
       where b.status='CHALLENGE_WINDOW' and (
             (p.status='CHALLENGE_WINDOW' and p.challenge_ends_at <= now())
@@ -59,7 +60,18 @@ export async function releaseDue(ctx: Ctx) {
 }
 
 async function release(ctx: Ctx, p: any) {
-  // The amount is the whole pot at release time, including fees earned during the challenge window.
+  if (ctx.chain) {
+    const r = await releaseOnchain(ctx, { bid: p.bid, mint: p.mint, wallet: p.linked_wallet, ticker: p.ticker });
+    if (!r) return; // the chain isn't there yet (verification landing / window still open); next tick retries
+    await ctx.db.tx(async (q) => {
+      await q.query(`update payouts set status='SENT', tx_sig=$2, wallet=$3, amount_lamports=$4 where id=$1`, [p.id, r.tx, r.wallet, r.amount]);
+      await q.query(`update bounties set payout_wallet=$2, paid_tx=$3 where id=$1`, [p.bid, r.wallet, r.tx]);
+      await setStatus(q, p.bid, "PAID", "released on-chain", p.verified_post_id);
+    });
+    await emit(ctx.db, "PAYOUT_SENT", p.token_id, p.bid, { amountLamports: r.amount, target: p.username, ticker: p.ticker, tx: r.tx });
+    return;
+  }
+  // SIM chain. The amount is the whole pot at release time, including fees earned during the challenge window.
   const amount = (await ctx.db.query(`select pot_lamports::text as pot from bounties where id=$1`, [p.bid]))[0].pot;
   const a: PayoutAttestation = {
     bountyId: p.bid, targetXUserId: p.target_x_user_id, postId: p.verified_post_id, payoutWallet: p.linked_wallet,
@@ -130,7 +142,8 @@ export async function cancelFrozen(ctx: Ctx, payoutId: string) {
 /** Target logs in with X (Privy) and links a wallet. Future bounties pay instantly. */
 export async function linkWallet(ctx: Ctx, xUserId: string, wallet: string) {
   if (!isSolanaAddress(wallet)) throw Object.assign(new Error("That's not a valid Solana address"), { statusCode: 400 });
-  await ctx.db.query(`update profiles set linked_wallet=$2 where x_user_id=$1`, [xUserId, wallet]);
+  const r = await ctx.db.query(`update profiles set linked_wallet=$2 where x_user_id=$1 returning x_user_id`, [xUserId, wallet]);
+  if (!r.length) throw Object.assign(new Error("Unknown X account: log in with X first"), { statusCode: 404 });
   await releaseDue(ctx);
 }
 

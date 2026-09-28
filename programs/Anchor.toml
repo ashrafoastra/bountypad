@@ -1,0 +1,19 @@
+[toolchain]
+anchor_version = "0.32.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+bounty_escrow = "BPADDJVZ2YAYgBG1hngg7a6YL5KPYaicKyzbk7AjRQ1Y"
+
+[programs.devnet]
+bounty_escrow = "BPADDJVZ2YAYgBG1hngg7a6YL5KPYaicKyzbk7AjRQ1Y"
+
+[workspace]
+members = ["escrow"]
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"

@@ -11,6 +11,8 @@ import type { Db } from "./db";
 import type { SnapshotEntry } from "./core/voting";
 import type { PayoutAttestation } from "./core/payout";
 import type { MockX } from "./sim/mockX";
+import { PublicKey } from "@solana/web3.js";
+import type { SolanaChain } from "./chain/service";
 
 const run = promisify(execFile);
 
@@ -57,15 +59,21 @@ export class DbHolders implements HolderSource {
   }
 }
 
-/** Sends released funds on-chain. */
+/** CHAIN=solana: balances read from the token program at the moment of detection. */
+export class OnchainHolders implements HolderSource {
+  constructor(private db: Db, private chain: SolanaChain) {}
+  async snapshot(tokenId: string, exclude: string[]) {
+    const t = (await this.db.query(`select mint from tokens where id=$1`, [tokenId]))[0];
+    if (!t) return [];
+    return this.chain.holders(new PublicKey(t.mint), exclude);
+  }
+}
+
+/** Sends released funds (SIM chain only; CHAIN=solana releases through services/onchain.ts). */
 export interface PayoutExecutor { release(a: PayoutAttestation, sigs: { signer: string; signature: string }[]): Promise<string> }
 
 export class SimPayouts implements PayoutExecutor {
   async release() { return "sim" + bs58.encode(randomBytes(40)).slice(0, 80); }
 }
 
-export class OnchainPayouts implements PayoutExecutor {
-  async release(): Promise<string> {
-    throw new Error("On-chain escrow release not built yet (programs/, milestone 4)");
-  }
-}
+

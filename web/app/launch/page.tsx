@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { RULES, normalizeTicker, tickerError, type BountyAction, type Profile } from "@bountypad/shared";
+import { RULES, normalizeTicker, tickerError, type BountyAction, type PreparedLaunch, type Profile } from "@bountypad/shared";
 import { api, useHealth } from "@/lib/api";
+import { airdrop, balanceOf, explorer, signAndSubmit } from "@/lib/chain";
 import { useAuth } from "@/lib/auth";
 import { actionText } from "@/lib/format";
 import { Avatar, ErrorNote, Verified, XIcon } from "@/components/ui";
@@ -23,12 +24,20 @@ export default function Launch() {
   const { data: health } = useHealth();
   const auth = useAuth();
   const [step, setStep] = useState(0);
-  const [f, setF] = useState({ name: "", ticker: "", imageUrl: "", description: "", handle: "", action: "TWEET_CASHTAG" as BountyAction, phrase: "", deadlineDays: RULES.defaultDeadlineDays });
+  const [f, setF] = useState({ name: "", ticker: "", imageUrl: "", description: "", handle: "", action: "TWEET_CASHTAG" as BountyAction, phrase: "", deadlineDays: RULES.defaultDeadlineDays, firstBuySol: "" });
+  const [stage, setStage] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+  const onchain = health?.chain === "solana";
+  useEffect(() => {
+    if (!onchain || !auth.wallet) return;
+    balanceOf(auth.wallet).then((b) => setBalance(Number(b.lamports) / 1e9)).catch(() => {});
+  }, [onchain, auth.wallet, stage]);
   const [lookup, setLookup] = useState<Lookup>(null);
   const [looking, setLooking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: k === "deadlineDays" ? Number(e.target.value) : e.target.value });
+  const firstBuy = Number(f.firstBuySol) || 0;
 
   // Look up the target on X as they type (debounced).
   useEffect(() => {
@@ -56,12 +65,25 @@ export default function Launch() {
     try {
       const w = auth.wallet;
       if (!w) { auth.login(); setBusy(false); return; }
-      const r = await api<{ id: string }>("/api/tokens", {
-        method: "POST",
-        json: { name: f.name, ticker: f.ticker, imageUrl: f.imageUrl || null, description: f.description, creatorWallet: w, targetHandle: f.handle, action: f.action, phrase: f.action === "VIDEO_PHRASE" ? f.phrase : null, deadlineDays: f.deadlineDays },
-      });
-      router.push(`/token/${r.id}`);
-    } catch (e) { setErr((e as Error).message); setBusy(false); }
+      const body = { name: f.name, ticker: f.ticker, imageUrl: f.imageUrl || null, description: f.description, creatorWallet: w, targetHandle: f.handle, action: f.action, phrase: f.action === "VIDEO_PHRASE" ? f.phrase : null, deadlineDays: f.deadlineDays };
+      if (!onchain) {
+        const r = await api<{ id: string }>("/api/tokens", { method: "POST", json: body });
+        router.push(`/token/${r.id}`);
+        return;
+      }
+      // On-chain: the API builds the Meteora pool + bounty transaction, your wallet signs it.
+      const r = await signAndSubmit(
+        () => api<PreparedLaunch>("/api/launch/prepare", { method: "POST", json: { ...body, firstBuySol: firstBuy } }),
+        auth.signTransaction,
+        (p, signed) => api<{ id: string; tx: string }>("/api/launch/submit", { method: "POST", json: { launchId: p.launchId, signedTransaction: signed } }),
+        (s) => setStage(s === "preparing" ? "Checking everything and building the transaction…" : s === "signing" ? "Approve the launch in your wallet…" : "Confirming on Solana…"),
+      );
+      router.push(`/token/${r.id}?launched=${r.tx}`);
+    } catch (e) {
+      const m = (e as Error).message;
+      setErr(/reject|cancel|denied/i.test(m) ? "You cancelled the signature. Nothing was launched." : m);
+      setBusy(false); setStage(null);
+    }
   }
 
   const target = lookup?.ok ? lookup.profile : null;
@@ -108,7 +130,7 @@ export default function Launch() {
                   <span className="ml-auto text-green text-sm font-mono">found</span>
                 </motion.div>
               ) : <ErrorNote msg={lookup.reason} />)}
-              {health?.sim && <p className="text-dim text-sm">Simulation accounts: novareyes, jaxkimura, alinamarsh, theo_voss, sofiaokafor, bytezen. Try lockedlena (private) or novaparody (parody) to see rejections.</p>}
+              {health?.xMode === "mock" && <p className="text-dim text-sm">Simulation accounts: novareyes, jaxkimura, alinamarsh, theo_voss, sofiaokafor, bytezen. Try lockedlena (private) or novaparody (parody) to see rejections.</p>}
             </>)}
 
             {step === 2 && (<>
@@ -141,13 +163,28 @@ export default function Launch() {
                 <Row k="Challenge" v={actionText(f.action, ticker, f.phrase)} />
                 <Row k="Deadline" v={`${f.deadlineDays} days`} />
                 <div className="h-px bg-line my-1" />
-                <Row k="Trading fee" v={`${RULES.fees.tradeFeeBps / 100}%`} />
+                <Row k="Trading fee" v={health?.feeSchedule ? `${health.feeSchedule.endingFeeBps / 100}% (starts at ${health.feeSchedule.startingFeeBps / 100}% and drops over the first ${Math.round(health.feeSchedule.decaySeconds / 60)} min to stop snipers)` : `${RULES.fees.tradeFeeBps / 100}%`} />
                 <Row k="Of the launchpad share" v={`${RULES.fees.split.potBps / 100}% pot · ${RULES.fees.split.creatorBps / 100}% you · ${RULES.fees.split.platformBps / 100}% platform`} />
               </div>
-              {auth.wallet && <p className="text-mute text-sm">Creator wallet: <span className="font-mono text-ink">{auth.wallet.slice(0, 6)}…{auth.wallet.slice(-6)}</span> (your {RULES.fees.split.creatorBps / 100}% share goes here)</p>}
+              {onchain && (
+                <Field label="Your first buy (optional, SOL)" hint="Bought in the same transaction as the launch, before anyone else, at the lowest fee.">
+                  <input className="input" inputMode="decimal" value={f.firstBuySol} onChange={set("firstBuySol")} placeholder="0" />
+                </Field>
+              )}
+              {auth.wallet && <p className="text-mute text-sm">Creator wallet: <span className="font-mono text-ink">{auth.wallet.slice(0, 6)}…{auth.wallet.slice(-6)}</span> (your {RULES.fees.split.creatorBps / 100}% share goes here){onchain && balance !== null && <> · balance <span className="text-ink">{balance.toFixed(3)} SOL</span></>}</p>}
+              {onchain && auth.wallet && balance !== null && balance < 0.05 + firstBuy && (
+                <div className="rounded-xl border border-gold/30 bg-gold/[.06] px-4 py-3 text-sm flex flex-wrap items-center gap-3">
+                  <span>You need about {(0.05 + firstBuy).toFixed(2)} SOL on {health?.cluster} to launch (network fees + your first buy).</span>
+                  {health?.cluster !== "mainnet-beta" && (health?.devTools
+                    ? <button className="btn btn-ghost h-9 text-sm" onClick={async () => { try { await airdrop(auth.wallet!, 2); setStage(null); setBalance((await balanceOf(auth.wallet!).then((b) => Number(b.lamports) / 1e9))); } catch (e) { setErr((e as Error).message); } }}>Get 2 test SOL</button>
+                    : <a className="underline text-gold" href="https://faucet.solana.com" target="_blank" rel="noreferrer">Get free devnet SOL</a>)}
+                </div>
+              )}
               <p className="text-dim text-sm">The coin page will say “Not affiliated with @{target?.username ?? "handle"}” until the challenge is verified. The person named hasn't agreed to anything.</p>
               {err && <ErrorNote msg={err} />}
-              <button className="btn btn-primary h-14 text-lg" disabled={busy} onClick={submit}>{busy ? "Launching…" : !auth.wallet ? "Connect wallet to launch" : health?.sim ? "Launch (simulated)" : "Launch coin"}</button>
+              {stage && <div className="flex items-center gap-3 text-sm text-mute"><span className="live-dot" />{stage}</div>}
+              <button className="btn btn-primary h-14 text-lg" disabled={busy} onClick={submit}>{busy ? "Launching…" : !auth.wallet ? "Connect wallet to launch" : onchain ? `Launch on Solana ${health?.cluster === "mainnet-beta" ? "" : health?.cluster}` : "Launch (simulated)"}</button>
+              {onchain && <p className="text-dim text-xs">One transaction creates the coin on Meteora's bonding curve and writes the challenge into the escrow program{health?.escrowProgram && <> (<a className="underline" target="_blank" rel="noreferrer" href={explorer(health, "account", health.escrowProgram)}>view program</a>)</>}. It can never be changed.</p>}
             </>)}
           </motion.div>
         </AnimatePresence>

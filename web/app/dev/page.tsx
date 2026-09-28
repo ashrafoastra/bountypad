@@ -9,17 +9,18 @@ import { Avatar, ErrorNote, Section, StatusPill } from "@/components/ui";
 type SimUser = { id: string; username: string; name: string };
 type SimPost = { id: string; username: string; text: string; createdAt: string; deleted: boolean; media: unknown[]; referenced: { type: string }[] };
 
-/** SIMULATION CONTROLS. Only available when the API runs with SIM_MODE. */
+/** DEV CONTROLS: post as simulated X accounts, run votes, fast-forward. Needs the simulated X + DEV_TOOLS. */
 export default function Dev() {
   const { data: health } = useHealth();
   const [users, setUsers] = useState<SimUser[]>([]);
   const { data: tokens } = useLive<TokenSummary[]>("/api/tokens?sort=new", { every: 3000 });
-  const { data: posts, reload: reloadPosts } = useLive<SimPost[]>(health?.sim ? "/api/dev/posts" : null, { every: 4000, on: () => false });
+  const mockX = health?.xMode === "mock" && health?.devTools;
+  const { data: posts, reload: reloadPosts } = useLive<SimPost[]>(mockX ? "/api/dev/posts" : null, { every: 4000, on: () => false });
   const [f, setF] = useState({ username: "novareyes", kind: "text", text: "", tokenId: "", transcript: "", duration: 20, reply: false, repost: false });
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
 
   useEffect(() => { api<SimUser[]>("/api/dev/users").then(setUsers).catch(() => {}); }, []);
-  if (health && !health.sim) return <ErrorNote msg="Dev tools only exist in SIM mode." />;
+  if (health && !mockX) return <ErrorNote msg="Dev tools need the simulated X and DEV_TOOLS on (never on a public deployment)." />;
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setMsg(null);
@@ -82,13 +83,16 @@ export default function Dev() {
             {voting.length === 0 ? <p className="text-mute text-sm">No votes open. Post a video that half-matches the phrase to start one.</p> : voting.map((t) => (
               <VoteBots key={t.token.id} t={t} run={run} />
             ))}
-            <div className="h-px bg-line" />
-            <div className="text-sm text-mute">Pump trades on a coin</div>
-            <div className="flex flex-wrap gap-2">
-              {tokens?.filter((t) => ["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(t.bounty.status)).map((t) => (
-                <button key={t.token.id} className="btn btn-ghost h-9 px-3 text-sm" onClick={() => run(`10 buys on $${t.token.ticker}`, () => api(`/api/dev/trades/${t.token.id}`, { method: "POST", json: { count: 10 } }))}>${t.token.ticker}</button>
-              ))}
-            </div>
+            {health?.chain === "solana" && <p className="text-dim text-xs">On-chain: this only moves the app's timers. The escrow keeps its own clock, so a payout still waits for the challenge window set on-chain ({health.cluster}).</p>}
+            {health?.chain !== "solana" && (<>
+              <div className="h-px bg-line" />
+              <div className="text-sm text-mute">Pump trades on a coin</div>
+              <div className="flex flex-wrap gap-2">
+                {tokens?.filter((t) => ["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(t.bounty.status)).map((t) => (
+                  <button key={t.token.id} className="btn btn-ghost h-9 px-3 text-sm" onClick={() => run(`10 buys on $${t.token.ticker}`, () => api(`/api/dev/trades/${t.token.id}`, { method: "POST", json: { count: 10 } }))}>${t.token.ticker}</button>
+                ))}
+              </div>
+            </>)}
           </div>
         </Section>
       </div>
