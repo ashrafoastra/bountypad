@@ -10,6 +10,7 @@ import { routes } from "./routes";
 import { devRoutes } from "./routes/dev";
 import { startJobs } from "./jobs";
 import { seed } from "./sim/sim";
+import { PrivyGateway } from "./privy";
 
 async function main() {
   const db = await createDb(env.databaseUrl);
@@ -22,6 +23,7 @@ async function main() {
     payouts: env.sim ? new SimPayouts() : new OnchainPayouts(),
     env,
     mockX,
+    privy: env.privyAppId && env.privyAppSecret ? new PrivyGateway(env.privyAppId, env.privyAppSecret) : null,
   };
 
   if (env.sim) {
@@ -38,6 +40,7 @@ async function main() {
 
   await app.listen({ port: env.port, host: "0.0.0.0" });
   console.log(`Bounty Pad API on :${env.port} ${env.sim ? "(SIM MODE: mock X, simulated trades, fake payouts)" : "(REAL MODE)"}`);
+  console.log(ctx.privy ? `Privy: on (app ${env.privyAppId})${env.privyPregenerate ? ", wallet pregeneration on" : ""}` : "Privy: off (dev login only)");
 }
 
 main().catch((e) => {

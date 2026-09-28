@@ -31,11 +31,21 @@ function attestation(p: any, b: any, wallet: string): PayoutAttestation {
  */
 export async function releaseDue(ctx: Ctx) {
   const due = await ctx.db.query(
-    `select p.*, b.target_x_user_id, b.verified_post_id, b.token_id, b.id as bid, pr.linked_wallet, pr.username, t.ticker
+    `select p.*, b.target_x_user_id, b.verified_post_id, b.token_id, b.id as bid, pr.linked_wallet, pr.username, pr.name as target_name, t.ticker
        from payouts p join bounties b on b.id=p.bounty_id join profiles pr on pr.x_user_id=b.target_x_user_id join tokens t on t.id=b.token_id
       where (p.status='CHALLENGE_WINDOW' and p.challenge_ends_at <= now()) or (p.status='AWAITING_CLAIM' and pr.linked_wallet is not null)`,
   );
   for (const p of due) {
+    if (!p.linked_wallet && ctx.privy && ctx.env.privyPregenerate) {
+      // Path 1: a wallet tied to their X account, ready before they ever log in.
+      try {
+        p.linked_wallet = await ctx.privy.walletForX({ id: p.target_x_user_id, username: p.username, name: p.target_name });
+        await ctx.db.query(`update profiles set linked_wallet=$2 where x_user_id=$1`, [p.target_x_user_id, p.linked_wallet]);
+        log(`pregenerated Privy wallet for @${p.username}`);
+      } catch (e) {
+        log(`Privy pregeneration failed for @${p.username}, falling back to claim:`, (e as Error).message);
+      }
+    }
     if (!p.linked_wallet) {
       if (p.status !== "AWAITING_CLAIM") {
         await ctx.db.query(`update payouts set status='AWAITING_CLAIM' where id=$1`, [p.id]);

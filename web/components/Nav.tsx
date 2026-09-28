@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "./ui";
 import { useHealth } from "@/lib/api";
+import { Account } from "./Account";
 
 const LINKS = [
   { href: "/", label: "Explore" },
@@ -15,7 +16,7 @@ export function Nav() {
   const { data: health } = useHealth();
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-bg/70 border-b border-line">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
         <Link href="/" className="flex items-center gap-2.5 font-bold text-lg tracking-tight">
           <LogoMark /> <span className="hidden sm:inline">Bounty Pad</span>
         </Link>
@@ -31,7 +32,8 @@ export function Nav() {
         </nav>
         <div className="ml-auto flex items-center gap-3">
           {health?.sim && <span className="hidden sm:inline-flex items-center gap-2 text-xs font-mono text-gold border border-gold/30 bg-gold/10 rounded-full px-3 py-1">SIMULATION</span>}
-          <Link href="/launch" className="btn btn-primary h-10 px-4 text-sm hidden sm:inline-flex">Launch a coin</Link>
+          <Link href="/launch" className="btn btn-ghost h-10 px-4 text-sm hidden md:inline-flex">Launch a coin</Link>
+          <Account />
         </div>
       </div>
     </header>

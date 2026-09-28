@@ -31,6 +31,11 @@ export const env = {
   whisperUrl: process.env.WHISPER_URL || "",
   whisperKey: process.env.WHISPER_API_KEY || "",
   adminKey: process.env.ADMIN_KEY || (sim ? "dev-admin" : ""),
+  /** Privy (https://dashboard.privy.io). Without these, login falls back to dev mode (SIM only). */
+  privyAppId: process.env.PRIVY_APP_ID || "",
+  privyAppSecret: process.env.PRIVY_APP_SECRET || "",
+  /** Path 1: create a Privy wallet for a target's X account at payout time. Off until Test A passes. */
+  privyPregenerate: process.env.PRIVY_PREGENERATE === "true",
   solUsd: num(process.env.SOL_USD, 150),
   verifier: {
     mainSecret: keys.main,

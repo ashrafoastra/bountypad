@@ -9,6 +9,7 @@ import { verifyVoteSignature } from "../core/voting";
 import { roundTally } from "../services/pipeline";
 import { addSignature, freeze, linkWallet, optOut } from "../services/payouts";
 import { bus } from "../services/events";
+import { identify } from "../auth";
 
 const SUMMARY_SQL = `
   select row_to_json(t) as t, row_to_json(b) as b, row_to_json(p) as p,
@@ -18,15 +19,6 @@ const SUMMARY_SQL = `
 
 function toSummary(r: any): TokenSummary {
   return { token: mapToken(r.t), bounty: mapBounty(r.b), target: mapProfile(r.p), holders: r.holders, volumeLamports: str(r.volume) };
-}
-
-/**
- * Who is logged in with X. SIM: the x-dev-x-user-id header. REAL: verify the Privy access
- * token and read the linked X account (not wired until Test A passes).
- */
-function xUserFrom(ctx: Ctx, req: FastifyRequest): string | null {
-  if (ctx.env.sim) return (req.headers["x-dev-x-user-id"] as string) || null;
-  return null;
 }
 
 export async function routes(app: FastifyInstance, ctx: Ctx) {
@@ -39,7 +31,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     return reply.status(err.statusCode ?? 500).send({ error: err.message ?? "server error" });
   });
 
-  app.get("/api/health", async () => ({ ok: true, sim: ctx.env.sim, solUsd: ctx.env.solUsd }));
+  app.get("/api/health", async () => ({ ok: true, sim: ctx.env.sim, solUsd: ctx.env.solUsd, privy: !!ctx.privy }));
 
   app.get("/api/stats", async (): Promise<Stats> => {
     const r = (await db.query(`
@@ -122,7 +114,19 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     if (!r) return reply.status(404).send({ error: "not found" });
     const d = (await db.query(`select * from detections where id=$1`, [r.detection_id]))[0];
     const s = toSummary((await db.query(`${SUMMARY_SQL} where b.id=$1`, [r.bounty_id]))[0]);
-    return { round: mapRound(r), tally: await roundTally(ctx, r), detection: mapDetection(d), summary: s, voters: (r.snapshot ?? []).length };
+    // Optional ?wallet= tells the voter up front whether they can vote and what they chose.
+    const w = (req.query as any).wallet as string | undefined;
+    let me = null;
+    if (w) {
+      const inSnap = (r.snapshot ?? []).some((x: any) => x.wallet === w);
+      const voted = (await db.query(`select choice from votes where round_id=$1 and wallet=$2`, [r.id, w]))[0]?.choice ?? null;
+      me = {
+        eligible: inSnap,
+        voted,
+        reason: inSnap ? null : w === s.token.creatorWallet ? "Creators can't vote on their own coin." : `This wallet didn't hold $${s.token.ticker} when the video was detected.`,
+      };
+    }
+    return { round: mapRound(r), tally: await roundTally(ctx, r), detection: mapDetection(d), summary: s, voters: (r.snapshot ?? []).length, me };
   });
 
   app.post("/api/votes/:roundId", async (req, reply) => {
@@ -130,7 +134,10 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     const roundId = (req.params as any).roundId;
     const r = (await db.query(`select * from vote_rounds where id=$1`, [roundId]))[0];
     if (!r || r.result !== "PENDING" || Date.parse(r.closes_at) < Date.now()) return reply.status(400).send({ error: "Vote is closed" });
-    if (!(r.snapshot ?? []).some((s: any) => s.wallet === body.wallet)) return reply.status(403).send({ error: "This wallet didn't hold the coin when the video was detected" });
+    if (!(r.snapshot ?? []).some((s: any) => s.wallet === body.wallet)) {
+      const creator = (await db.query(`select t.creator_wallet from bounties b join tokens t on t.id=b.token_id where b.id=$1`, [r.bounty_id]))[0]?.creator_wallet;
+      return reply.status(403).send({ error: body.wallet === creator ? "Creators can't vote on their own coin." : "This wallet didn't hold the coin when the video was detected." });
+    }
     if (!verifyVoteSignature(roundId, body.choice, body.wallet, body.signature)) return reply.status(400).send({ error: "Bad signature" });
     await db.query(`insert into votes (round_id, wallet, choice, signature) values ($1,$2,$3,$4) on conflict (round_id, wallet) do nothing`, [
       roundId, body.wallet, body.choice, body.signature,
@@ -139,9 +146,18 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
   });
 
   // ---- claim flow for public figures (X login) ----
+  app.get("/api/me", async (req, reply) => {
+    const me = await identify(ctx, req);
+    if (!me) return reply.status(401).send({ error: "Not logged in" });
+    const p = me.xUserId ? (await db.query(`select * from profiles where x_user_id=$1`, [me.xUserId]))[0] : null;
+    return { via: me.via, wallets: me.wallets, profile: p ? mapProfile(p) : null };
+  });
+
   app.get("/api/me/claims", async (req, reply) => {
-    const xid = xUserFrom(ctx, req);
-    if (!xid) return reply.status(401).send({ error: "Log in with X" });
+    const me = await identify(ctx, req);
+    if (!me) return reply.status(401).send({ error: "Log in first" });
+    if (!me.xUserId) return reply.status(403).send({ error: "Link your X account to see coins that name you" });
+    const xid = me.xUserId;
     const p = (await db.query(`select * from profiles where x_user_id=$1`, [xid]))[0];
     if (!p) return { profile: null, bounties: [] };
     const rows = (await db.query(`${SUMMARY_SQL} where b.target_x_user_id=$1 order by b.pot_lamports desc`, [xid])).map(toSummary);
@@ -150,16 +166,18 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
   });
 
   app.post("/api/me/wallet", async (req, reply) => {
-    const xid = xUserFrom(ctx, req);
-    if (!xid) return reply.status(401).send({ error: "Log in with X" });
+    const me = await identify(ctx, req);
+    if (!me?.xUserId) return reply.status(401).send({ error: "Log in with X" });
+    const xid = me.xUserId;
     const { wallet } = z.object({ wallet: z.string().min(32).max(44) }).parse(req.body);
     await linkWallet(ctx, xid, wallet);
     return { ok: true };
   });
 
   app.post("/api/me/opt-out", async (req, reply) => {
-    const xid = xUserFrom(ctx, req);
-    if (!xid) return reply.status(401).send({ error: "Log in with X" });
+    const me = await identify(ctx, req);
+    if (!me?.xUserId) return reply.status(401).send({ error: "Log in with X" });
+    const xid = me.xUserId;
     await optOut(ctx, xid);
     return { ok: true };
   });

@@ -4,17 +4,17 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { voteMessage, type Detection, type TokenSummary, type VoteChoice, type VoteRound, type VoteTally } from "@bountypad/shared";
 import { api, useLive } from "@/lib/api";
-import { connectWallet, signText } from "@/lib/wallet";
+import { useAuth } from "@/lib/auth";
 import { ago, countdown, short } from "@/lib/format";
 import { ErrorNote, PostCard, Skeleton } from "@/components/ui";
 import { VoteBars } from "@/components/VoteBars";
 
-type VoteData = { round: VoteRound; tally: VoteTally; detection: Detection; summary: TokenSummary; voters: number };
+type VoteData = { round: VoteRound; tally: VoteTally; detection: Detection; summary: TokenSummary; voters: number; me: { eligible: boolean; voted: VoteChoice | null; reason: string | null } | null };
 
 export default function VotePage() {
   const { roundId } = useParams<{ roundId: string }>();
-  const { data: d, error, reload } = useLive<VoteData>(`/api/votes/${roundId}`, { every: 3000, on: (e) => e.type.startsWith("VOTE") });
-  const [wallet, setWallet] = useState<string | null>(null);
+  const auth = useAuth();
+  const { data: d, error, reload } = useLive<VoteData>(`/api/votes/${roundId}${auth.wallet ? `?wallet=${auth.wallet}` : ""}`, { every: 3000, on: (e) => e.type.startsWith("VOTE") });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -26,9 +26,9 @@ export default function VotePage() {
   async function vote(choice: VoteChoice) {
     setBusy(true); setMsg(null);
     try {
-      const w = wallet ?? (await connectWallet());
-      setWallet(w);
-      const signature = await signText(voteMessage(roundId, choice));
+      const w = auth.wallet;
+      if (!w) { auth.login(); setBusy(false); return; }
+      const signature = await auth.signMessage(voteMessage(roundId, choice));
       await api(`/api/votes/${roundId}`, { method: "POST", json: { wallet: w, choice, signature } });
       setMsg({ ok: true, text: `Vote recorded: ${choice}. Signed by ${short(w)}, no transaction, no fee.` });
       reload();
@@ -64,7 +64,10 @@ export default function VotePage() {
             {open && <span className="text-ink">{countdown(round.closesAt)}</span>}
           </div>
           <VoteBars yes={tally.yesPct} turnout={tally.turnoutPct} />
-          {open && (
+          {open && !auth.wallet && <button className="btn btn-primary w-full mt-6" onClick={auth.login}>Connect wallet to vote</button>}
+          {open && auth.wallet && d.me && !d.me.eligible && <div className="mt-6 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-mute">{d.me.reason}</div>}
+          {open && auth.wallet && d.me?.voted && <div className="mt-6 rounded-xl border border-green/40 bg-green/10 px-4 py-3 text-sm text-green">You voted {d.me.voted}. Signed, no fee.</div>}
+          {open && auth.wallet && d.me?.eligible && !d.me.voted && (
             <div className="grid grid-cols-2 gap-3 mt-6">
               <button className="btn btn-primary" disabled={busy} onClick={() => vote("YES")}>Yes, said it</button>
               <button className="btn btn-ghost !border-red/40 text-red" disabled={busy} onClick={() => vote("NO")}>No</button>

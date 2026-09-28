@@ -22,10 +22,14 @@ export class MockX implements XProvider {
   deleted = new Set<string>();
   transcripts = new Map<string, string>();
   private seq = 5_000_000_000_000_000_000n;
+  users: XUser[] = [...SIM_USERS];
+
+  /** SIM + Privy: a real X account that logged in becomes a postable sim account. */
+  addUser(u: XUser) { if (!this.userById(u.id)) this.users.push(u); }
 
   nextId() { this.seq += BigInt(1 + Math.floor(Math.random() * 1000)); return this.seq.toString(); }
-  userById(id: string) { return SIM_USERS.find((u) => u.id === id) ?? null; }
-  userByName(n: string) { return SIM_USERS.find((u) => u.username.toLowerCase() === n.toLowerCase()) ?? null; }
+  userById(id: string) { return this.users.find((u) => u.id === id) ?? null; }
+  userByName(n: string) { return this.users.find((u) => u.username.toLowerCase() === n.toLowerCase()) ?? null; }
 
   createPost(p: { username: string; text: string; quoteOf?: string; replyTo?: string; repost?: string; video?: { transcript: string; durationSec: number } }) {
     const u = this.userByName(p.username);

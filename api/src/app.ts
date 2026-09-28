@@ -2,6 +2,7 @@ import type { Db } from "./db";
 import type { XProvider } from "./x/types";
 import type { HolderSource, PayoutExecutor, VideoPipeline } from "./adapters";
 import type { MockX } from "./sim/mockX";
+import type { PrivyGateway } from "./privy";
 import { env } from "./env";
 
 export interface Ctx {
@@ -13,6 +14,8 @@ export interface Ctx {
   env: typeof env;
   /** Present only in SIM mode. */
   mockX: MockX | null;
+  /** Present when PRIVY_APP_ID + PRIVY_APP_SECRET are set. */
+  privy: PrivyGateway | null;
 }
 
 export const secondsFromNow = (s: number) => new Date(Date.now() + s * 1000).toISOString();

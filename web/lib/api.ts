@@ -6,10 +6,9 @@ export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export class ApiError extends Error {}
 
-export async function api<T>(path: string, init?: RequestInit & { json?: unknown; xUser?: string | null }): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const headers: Record<string, string> = { ...(init?.headers as any) };
   if (init?.json !== undefined) headers["content-type"] = "application/json";
-  if (init?.xUser) headers["x-dev-x-user-id"] = init.xUser;
   const res = await fetch(API + path, {
     ...init,
     headers,
@@ -65,5 +64,5 @@ export function useLive<T>(path: string | null, opts: { every?: number; on?: (e:
 }
 
 export function useHealth() {
-  return useLive<{ ok: boolean; sim: boolean; solUsd: number }>("/api/health", { every: 60000, on: () => false });
+  return useLive<{ ok: boolean; sim: boolean; solUsd: number; privy: boolean }>("/api/health", { every: 60000, on: () => false });
 }

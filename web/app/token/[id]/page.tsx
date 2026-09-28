@@ -4,7 +4,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import type { TokenDetail } from "@bountypad/shared";
-import { useHealth, useLive } from "@/lib/api";
+import { api, useHealth, useLive } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { actionText, ago, countdown, fmtSol, fmtUsd, short, sol } from "@/lib/format";
 import { VoteBars } from "@/components/VoteBars";
 import { Avatar, CheckList, Counter, ErrorNote, PostCard, Section, Skeleton, Sparkline, StatusPill, StatusTimeline, Verified } from "@/components/ui";
@@ -12,6 +13,8 @@ import { Avatar, CheckList, Counter, ErrorNote, PostCard, Section, Skeleton, Spa
 export default function TokenPage() {
   const { id } = useParams<{ id: string }>();
   const { data: health } = useHealth();
+  const auth = useAuth();
+  const [buyMsg, setBuyMsg] = useState<string | null>(null);
   const solUsd = health?.solUsd ?? 150;
   const { data: d, error } = useLive<TokenDetail>(`/api/tokens/${id}`, { every: 3000, on: (e) => e.tokenId === id });
   const [, tick] = useState(0);
@@ -125,6 +128,23 @@ export default function TokenPage() {
               <div className="rounded-xl bg-panel border border-line p-3"><div className="text-dim text-xs">If it expires</div><div className="mt-1">Pot is burned</div></div>
             </div>
           </div>
+
+          {["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(bounty.status) && (
+            <div className="card p-6">
+              <div className="text-mute text-xs font-mono uppercase tracking-widest mb-3">Trade</div>
+              {health?.sim ? (<>
+                <p className="text-sm text-mute mb-4">Simulation: buy with your connected wallet to become a holder (and vote on video challenges).</p>
+                {auth.wallet ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {[0.5, 1, 5].map((v) => (
+                      <button key={v} className="btn btn-ghost h-11 text-sm" onClick={async () => { try { await api("/api/dev/buy", { method: "POST", json: { tokenId: token.id, wallet: auth.wallet, sol: v } }); setBuyMsg(`Bought ${v} SOL of $${token.ticker}`); } catch (e) { setBuyMsg((e as Error).message); } }}>Buy {v} SOL</button>
+                    ))}
+                  </div>
+                ) : <button className="btn btn-primary w-full" onClick={auth.login}>Connect wallet to trade</button>}
+                {buyMsg && <p className="text-green text-sm mt-3">{buyMsg}</p>}
+              </>) : <p className="text-sm text-mute">Trading opens with the on-chain launch (Meteora bonding curve).</p>}
+            </div>
+          )}
 
           {d.vote && (
             <div className="card p-6">

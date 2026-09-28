@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { RULES, normalizeTicker, tickerError, type BountyAction, type Profile } from "@bountypad/shared";
 import { api, useHealth } from "@/lib/api";
-import { connectWallet } from "@/lib/wallet";
+import { useAuth } from "@/lib/auth";
 import { actionText } from "@/lib/format";
 import { Avatar, ErrorNote, Verified, XIcon } from "@/components/ui";
 
@@ -21,11 +21,11 @@ type Lookup = { ok: true; profile: Profile } | { ok: false; reason: string } | n
 export default function Launch() {
   const router = useRouter();
   const { data: health } = useHealth();
+  const auth = useAuth();
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ name: "", ticker: "", imageUrl: "", description: "", handle: "", action: "TWEET_CASHTAG" as BountyAction, phrase: "", deadlineDays: RULES.defaultDeadlineDays });
   const [lookup, setLookup] = useState<Lookup>(null);
   const [looking, setLooking] = useState(false);
-  const [wallet, setWallet] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: k === "deadlineDays" ? Number(e.target.value) : e.target.value });
@@ -54,12 +54,8 @@ export default function Launch() {
   async function submit() {
     setErr(null); setBusy(true);
     try {
-      let w = wallet;
-      if (!w) {
-        if (health?.sim) w = "SimCreator111111111111111111111111111111111";
-        else w = await connectWallet();
-        setWallet(w);
-      }
+      const w = auth.wallet;
+      if (!w) { auth.login(); setBusy(false); return; }
       const r = await api<{ id: string }>("/api/tokens", {
         method: "POST",
         json: { name: f.name, ticker: f.ticker, imageUrl: f.imageUrl || null, description: f.description, creatorWallet: w, targetHandle: f.handle, action: f.action, phrase: f.action === "VIDEO_PHRASE" ? f.phrase : null, deadlineDays: f.deadlineDays },
@@ -148,9 +144,10 @@ export default function Launch() {
                 <Row k="Trading fee" v={`${RULES.fees.tradeFeeBps / 100}%`} />
                 <Row k="Of the launchpad share" v={`${RULES.fees.split.potBps / 100}% pot · ${RULES.fees.split.creatorBps / 100}% you · ${RULES.fees.split.platformBps / 100}% platform`} />
               </div>
+              {auth.wallet && <p className="text-mute text-sm">Creator wallet: <span className="font-mono text-ink">{auth.wallet.slice(0, 6)}…{auth.wallet.slice(-6)}</span> (your {RULES.fees.split.creatorBps / 100}% share goes here)</p>}
               <p className="text-dim text-sm">The coin page will say “Not affiliated with @{target?.username ?? "handle"}” until the challenge is verified. The person named hasn't agreed to anything.</p>
               {err && <ErrorNote msg={err} />}
-              <button className="btn btn-primary h-14 text-lg" disabled={busy} onClick={submit}>{busy ? "Launching…" : health?.sim ? "Launch (simulated)" : wallet ? "Launch coin" : "Connect wallet & launch"}</button>
+              <button className="btn btn-primary h-14 text-lg" disabled={busy} onClick={submit}>{busy ? "Launching…" : !auth.wallet ? "Connect wallet to launch" : health?.sim ? "Launch (simulated)" : "Launch coin"}</button>
             </>)}
           </motion.div>
         </AnimatePresence>

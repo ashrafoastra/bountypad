@@ -17,8 +17,8 @@ export const SIM_CREATOR = SIM_WALLETS[0].address;
 function rand(min: number, max: number) { return min + Math.random() * (max - min); }
 
 /** One simulated trade: moves holder balances and adds the pot share of the fee to the bounty. */
-export async function simTrade(ctx: Ctx, tokenId: string, opts: { side?: "BUY" | "SELL"; sol?: number; walletIdx?: number; quiet?: boolean } = {}) {
-  const w = SIM_WALLETS[opts.walletIdx ?? 1 + Math.floor(Math.random() * (SIM_WALLETS.length - 1))];
+export async function simTrade(ctx: Ctx, tokenId: string, opts: { side?: "BUY" | "SELL"; sol?: number; walletIdx?: number; wallet?: string; quiet?: boolean } = {}) {
+  const w = opts.wallet ? { address: opts.wallet } : SIM_WALLETS[opts.walletIdx ?? 1 + Math.floor(Math.random() * (SIM_WALLETS.length - 1))];
   let side = opts.side ?? (Math.random() < 0.72 ? "BUY" : "SELL");
   const sol = opts.sol ?? Math.exp(rand(Math.log(0.05), Math.log(9)));
   const lamports = BigInt(Math.round(sol * 1e9));
