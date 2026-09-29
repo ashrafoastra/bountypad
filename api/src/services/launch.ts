@@ -82,6 +82,8 @@ async function validate(ctx: Ctx, input: unknown) {
   const te = tickerError(req.ticker);
   if (te) throw new LaunchError(te);
   const ticker = normalizeTicker(req.ticker);
+  if (req.action === "VIDEO_PHRASE" && !ctx.mockX && !ctx.env.whisperUrl)
+    throw new LaunchError("Video challenges need speech-to-text set up on the server (WHISPER_URL). Pick another challenge.");
   if (req.action === "VIDEO_PHRASE" && !(req.phrase && req.phrase.split(/\s+/).length >= 2))
     throw new LaunchError("Video bounties need a short phrase of at least 2 words");
   if (req.action === "QUOTE_LAUNCH" && !(await platformConnected(ctx)))

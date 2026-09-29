@@ -82,6 +82,8 @@ export interface Health {
   xLogin: boolean;
   /** The platform's X account is connected (launch posts, receipts; enables "quote the launch post"). */
   platformX: boolean;
+  /** Video challenges can be verified (speech-to-text configured, or the simulated X). */
+  videoChallenges: boolean;
   /** CHAIN=solana: the launchpad's anti-sniper fee schedule (fee starts high, decays to the base fee). */
   feeSchedule: { startingFeeBps: number; endingFeeBps: number; decaySeconds: number } | null;
 }
