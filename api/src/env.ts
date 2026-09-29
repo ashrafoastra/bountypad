@@ -5,8 +5,10 @@ import bs58 from "bs58";
 const num = (v: string | undefined, d: number) => (v ? Number(v) : d);
 
 const xToken = process.env.X_BEARER_TOKEN || "";
-/** X: real as soon as X_BEARER_TOKEN is set (X_MODE=mock forces the simulated X). */
-const xMode: "mock" | "real" = process.env.X_MODE === "mock" || !xToken ? "mock" : "real";
+/** Alternative to the bearer token: the app's API Key + Secret ("consumer keys"); the API exchanges them for one. */
+const xApiKey = process.env.X_API_KEY || "", xApiSecret = process.env.X_API_SECRET || "";
+/** X: real as soon as X_BEARER_TOKEN (or X_API_KEY + X_API_SECRET) is set. X_MODE=mock forces the simulated X. */
+const xMode: "mock" | "real" = process.env.X_MODE === "mock" || !(xToken || (xApiKey && xApiSecret)) ? "mock" : "real";
 /** Chain: "solana" = real launches/trades/escrow on SOLANA_RPC_URL; "sim" = simulated trades and payouts. */
 const chain: "sim" | "solana" = process.env.CHAIN === "solana" ? "solana" : "sim";
 /** Fully simulated (mock X + sim chain): demo data is seeded and reset on every start. */
@@ -33,6 +35,8 @@ export const env = {
   xMode,
   chain,
   xBearer: xToken,
+  xApiKey,
+  xApiSecret,
   /** "tweet" = tweet.fields/referenced_tweets, "post" = post.fields/referenced_posts. Verify with Test C. */
   xFieldStyle: (process.env.X_FIELD_STYLE || "tweet") as "tweet" | "post",
   whisperUrl: process.env.WHISPER_URL || "",

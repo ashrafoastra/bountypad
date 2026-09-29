@@ -10,17 +10,17 @@ export function VoteBars({ yes, turnout }: { yes: number; turnout: number }) {
         <div className="flex justify-between text-sm mb-2">
           {none ? <span className="text-mute">No votes yet</span> : <><span className="text-green">Yes {yes}%</span><span className="text-red">No {Math.round((100 - yes) * 100) / 100}%</span></>}
         </div>
-        <div className={`h-2.5 rounded-full overflow-hidden relative ${none ? "bg-white/[.06]" : "bg-red/30"}`}>
+        <div className={`h-2.5 rounded-full overflow-hidden relative ${none ? "bg-panel" : "bg-red/30"}`}>
           <motion.div className="h-full bg-green" animate={{ width: `${none ? 0 : yes}%` }} transition={{ type: "spring", stiffness: 120, damping: 20 }} />
-          <div className="absolute inset-y-0 w-px bg-white/70" style={{ left: "60%" }} />
+          <div className="absolute inset-y-0 w-px bg-white/90" style={{ left: "60%" }} />
         </div>
         <div className="text-xs text-dim mt-1.5">Needs 60% yes</div>
       </div>
       <div>
         <div className="flex justify-between text-sm mb-2"><span className="text-mute">Turnout</span><span>{turnout}%</span></div>
-        <div className="h-2.5 rounded-full bg-white/[.06] overflow-hidden relative">
+        <div className="h-2.5 rounded-full bg-panel overflow-hidden relative">
           <motion.div className="h-full bg-xblue" animate={{ width: `${Math.min(100, turnout)}%` }} />
-          <div className="absolute inset-y-0 w-px bg-white/70" style={{ left: "10%" }} />
+          <div className="absolute inset-y-0 w-px bg-white/90" style={{ left: "10%" }} />
         </div>
         <div className="text-xs text-dim mt-1.5">Needs 10% of holders</div>
       </div>

@@ -67,3 +67,13 @@ Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hn
 | Program upgrade authority, escrow admin, fee claimer and burn treasury = the keeper key on devnet | MUST move to the 2-of-3 Squads multisig before mainnet (§4). |
 | X and chain are separate switches: `X_BEARER_TOKEN` → real X; `CHAIN=solana` → real Solana | Real X can be tested with the simulated chain and the other way round. |
 | `shared/` changes: Token.pool/launchTx/escrow, Health, PreparedLaunch/PreparedTrade, feed events POT_FUNDED / POT_BURNED, launch `firstBuySol` | **Needs approval from all 3.** |
+
+## Design + images (2026-09-29)
+
+| Decision | Why |
+|---|---|
+| Light, simple UI in the OpenSea / Rarible school; one yellow accent; status colours only | Owner's direction: the dark neon look felt "AI". Content (coin images, pots) carries the page. |
+| Every coin needs an image (API rejects launches without `imageUrl`) | Coins are shown like NFTs; the image is also the on-chain metadata image. |
+| Images uploaded to the API (`POST /api/uploads`, PNG/JPG/WebP/GIF, 2 MB, checked by magic bytes), stored by sha256 on disk (`UPLOAD_DIR`), served immutable at `/api/files/:name` | Simple and permanent links. On multi-server hosting, move to S3/R2. |
+| X credentials: `X_BEARER_TOKEN`, or `X_API_KEY` + `X_API_SECRET` exchanged for one; `npm run x:check -w api` | The OAuth 2.0 Client ID/Secret can't read posts (they're for user login). |
+| Own logo (coin + target + check on black); the earlier yellow-square letter mark was dropped | Too close to Rarible's identity. |

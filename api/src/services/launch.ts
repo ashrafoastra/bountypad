@@ -14,7 +14,8 @@ export class LaunchError extends Error { constructor(msg: string, public status 
 export const launchSchema = z.object({
   name: z.string().trim().min(1).max(32),
   ticker: z.string(),
-  imageUrl: z.string().url().max(500).nullish(),
+  /** The coin's logo (uploaded with POST /api/uploads). Required: every coin shows an image. */
+  imageUrl: z.string({ required_error: "Add the coin's image" }).url("Add the coin's image").max(500),
   description: z.string().max(280).optional().default(""),
   creatorWallet: z.string().refine(isSolanaAddress, "not a valid Solana address"),
   targetHandle: z.string(),

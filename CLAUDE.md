@@ -193,12 +193,15 @@ Side exits: `REJECTED` (back to `OPEN`), `EXPIRED` (pot burned), `OPTED_OUT` (po
 
 ## 7. Design and motion
 
-- Visual reference: **https://usepaid.app** (the level of polish and motion we must match or beat). Other launchpads studied: https://bags.fm, https://www.commodites.market, https://www.levergepad.org
-- Style: dark, premium, fast. Live counters (pots growing in real time), animated status transitions, a live feed of detections/verifications/payouts, smooth page transitions.
-- Key screens: home (live feed + biggest pots), launch form (step by step), token page (chart, pot, bounty card, status timeline), voting page, public figure profile (all bounties naming them, total earned), claim page (X login).
+- Direction (2026-09-29, from the product owner): **simple, light, content first**, in the school of **OpenSea and Rarible**. No dark/neon look, no decorative 3D, no gimmick effects.
+  - White surfaces, near-black text and primary buttons, light-grey panels, 1px hairline borders, 16px radii.
+  - One brand accent: yellow `#ffc72c`, used sparingly (logo, step numbers, selection). Colour otherwise means status only (green = paid/success, amber = waiting, red = error, blue = links / X).
+  - Inter everywhere; bold, tight headings; no monospace labels in the UI (only for addresses when needed).
+  - The coin image is the hero of every card and page (like an NFT): **every coin must have an image** (uploaded at launch, required).
+  - Motion stays subtle: counters, fades, hover lifts.
+- Logo: black rounded square with the gold coin-target and a white check (`web/public/brand/logo.svg`). Don't imitate other brands' marks.
+- Key screens: home (featured bounty, top bounties table, new challenges shelf, activity), launch form (step by step), token page (image, challenge, pot, trade, status), voting page, public figure profile, claim page (X login).
 - Mobile-first. Every page must work at phone width.
-
----
 
 ## 8. Security and rules
 

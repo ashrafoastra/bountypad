@@ -24,13 +24,13 @@ export default function ProfilePage() {
           {p.optedOut && <div className="mt-3 text-sm text-mute border border-line rounded-full px-3 py-1 w-fit">Opted out of bounties</div>}
         </div>
         <div className="sm:ml-auto grid grid-cols-2 gap-6">
-          <div><div className="text-xs font-mono uppercase tracking-widest text-mute">Waiting for them</div><Counter value={sol(d.lockedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block text-2xl font-bold text-gold mt-1" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.lockedLamports) * solUsd)}</div></div>
-          <div><div className="text-xs font-mono uppercase tracking-widest text-mute">Earned</div><Counter value={sol(d.earnedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block text-2xl font-bold text-green mt-1" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.earnedLamports) * solUsd)}</div></div>
+          <div><div className="text-sm font-semibold text-mute">Waiting for them</div><Counter value={sol(d.lockedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block text-2xl font-bold text-ink mt-1" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.lockedLamports) * solUsd)}</div></div>
+          <div><div className="text-sm font-semibold text-mute">Earned</div><Counter value={sol(d.earnedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block text-2xl font-bold text-green mt-1" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.earnedLamports) * solUsd)}</div></div>
         </div>
       </div>
       <Section title={`Challenges naming @${p.username}`}>
         {d.bounties.length === 0 ? <Empty>No coins name this account yet.</Empty> : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{d.bounties.map((s) => <TokenCard key={s.token.id} s={s} solUsd={solUsd} />)}</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">{d.bounties.map((s) => <TokenCard key={s.token.id} s={s} solUsd={solUsd} />)}</div>
         )}
       </Section>
       <p className="text-dim text-sm">Is this you? <a href="/claim" className="text-green">Log in with X</a> to claim completed bounties or opt out of all future ones.</p>

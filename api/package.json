@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:privy": "tsx scripts/test-privy.ts",
     "chain:setup": "tsx scripts/chain-setup.ts",
-    "test:chain": "SOLANA_TEST_RPC=${SOLANA_TEST_RPC:-http://127.0.0.1:8899} vitest run test/chain.test.ts"
+    "test:chain": "SOLANA_TEST_RPC=${SOLANA_TEST_RPC:-http://127.0.0.1:8899} vitest run test/chain.test.ts",
+    "x:check": "tsx scripts/x-check.ts"
   },
   "dependencies": {
     "@bountypad/shared": "*",

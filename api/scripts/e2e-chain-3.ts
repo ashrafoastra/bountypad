@@ -21,7 +21,7 @@ async function main() {
   const users = await call("GET", "/api/dev/users");
   const theo = users.find((u: any) => u.username === "theo_voss");
   await call("POST", "/api/me/wallet", { wallet: payee }, { "x-dev-x-user-id": theo.id });
-  const prep = await call("POST", "/api/launch/prepare", { name: "Voss Video", ticker: "VID" + Math.random().toString(36).slice(2, 4).toUpperCase().replace(/[^A-Z]/g, "Z"), creatorWallet: creator, targetHandle: "theo_voss", action: "VIDEO_PHRASE", phrase: "I am holding Voss coin", firstBuySol: 1 });
+  const prep = await call("POST", "/api/launch/prepare", { imageUrl: "https://example.com/coin.png", name: "Voss Video", ticker: "VID" + Math.random().toString(36).slice(2, 4).toUpperCase().replace(/[^A-Z]/g, "Z"), creatorWallet: creator, targetHandle: "theo_voss", action: "VIDEO_PHRASE", phrase: "I am holding Voss coin", firstBuySol: 1 });
   const c = await call("POST", "/api/launch/submit", { launchId: prep.launchId, signedTransaction: await signTx(creator, prep.transaction) });
   ok("video coin launched (creator bought 1 SOL in the launch tx)");
   for (const [w, sol] of [[h1, 3], [h2, 1]] as const) {

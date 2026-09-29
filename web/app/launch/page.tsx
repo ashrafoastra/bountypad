@@ -7,7 +7,8 @@ import { api, useHealth } from "@/lib/api";
 import { airdrop, balanceOf, explorer, signAndSubmit } from "@/lib/chain";
 import { useAuth } from "@/lib/auth";
 import { actionText } from "@/lib/format";
-import { Avatar, ErrorNote, Verified, XIcon } from "@/components/ui";
+import { Avatar, ErrorNote, TokenImage, Verified, XIcon } from "@/components/ui";
+import { ImageUpload } from "@/components/ImageUpload";
 
 const STEPS = ["Coin", "Target", "Challenge", "Launch"];
 const ACTIONS: { id: BountyAction; title: string; desc: string }[] = [
@@ -54,7 +55,7 @@ export default function Launch() {
   const tErr = f.ticker ? tickerError(f.ticker) : null;
   const ticker = normalizeTicker(f.ticker) || "TICKER";
   const valid = [
-    !!f.name.trim() && !!f.ticker && !tErr,
+    !!f.name.trim() && !!f.ticker && !tErr && !!f.imageUrl,
     lookup?.ok === true,
     f.action !== "VIDEO_PHRASE" || f.phrase.trim().split(/\s+/).length >= 2,
     true,
@@ -91,27 +92,29 @@ export default function Launch() {
   return (
     <div className="grid lg:grid-cols-[1fr_420px] gap-10 max-w-6xl mx-auto">
       <div className="min-w-0">
-        <div className="eyebrow !text-green">Launch</div>
-        <h1 className="text-[40px] sm:text-[60px] leading-[1] font-semibold tracking-[-0.045em] mt-4 text-balance">Launch a coin. <span className="serif-accent gold-text pr-1">Set the challenge.</span></h1>
-        <p className="text-mute text-lg mt-3">The challenge is written on-chain at launch and can never change.</p>
+        <h1 className="text-[32px] sm:text-[40px] leading-[1.1] font-bold tracking-[-0.03em]">Launch a coin</h1>
+        <p className="text-mute text-lg mt-2">Create the coin and its challenge together. The challenge is written on-chain and can never change.</p>
 
         <div className="flex flex-wrap gap-2 mt-8 mb-8">
           {STEPS.map((s, i) => (
             <button key={s} onClick={() => i < step || valid.slice(0, i).every(Boolean) ? setStep(i) : null}
-              className={`flex items-center gap-2 h-10 px-4 rounded-full border text-sm transition-all ${i === step ? "border-green/60 bg-green/10 text-ink shadow-[0_0_20px_rgba(61,255,162,.15)]" : i < step ? "border-line text-mute" : "border-line text-dim"}`}>
-              <span className={`font-mono text-xs ${i <= step ? "text-green" : ""}`}>0{i + 1}</span>{s}
+              className={`flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold transition-colors ${i === step ? "bg-ink text-white" : i < step ? "bg-panel text-ink" : "bg-panel text-dim"}`}>
+              <span className={`text-xs ${i === step ? "text-brand" : ""}`}>{i < step ? "✓" : i + 1}</span>{s}
             </button>
           ))}
         </div>
 
         <AnimatePresence mode="wait">
-          <motion.div key={step} initial={{ opacity: 0, x: 24, filter: "blur(6px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} exit={{ opacity: 0, x: -24, filter: "blur(6px)" }} transition={{ duration: 0.3 }} className="flex flex-col gap-5">
+          <motion.div key={step} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="flex flex-col gap-5">
             {step === 0 && (<>
               <Field label="Coin name"><input className="input" maxLength={32} value={f.name} onChange={set("name")} placeholder="Rocket" /></Field>
               <Field label="Ticker" hint={`1 to ${RULES.tickerMaxLength} letters. X only detects short cashtags.`} error={tErr}>
                 <input className="input uppercase" value={f.ticker} onChange={set("ticker")} placeholder="ROCKET" />
               </Field>
-              <Field label="Image URL" hint="Optional. Upload comes with the on-chain launch."><input className="input" value={f.imageUrl} onChange={set("imageUrl")} placeholder="https://…" /></Field>
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-semibold">Logo</span>
+                <ImageUpload value={f.imageUrl} onChange={(url) => setF({ ...f, imageUrl: url })} />
+              </div>
               <Field label="Description"><textarea className="input" rows={3} maxLength={280} value={f.description} onChange={set("description")} placeholder="What's the story?" /></Field>
             </>)}
 
@@ -124,10 +127,10 @@ export default function Launch() {
               </Field>
               {looking && <div className="text-mute text-sm">Looking up on X…</div>}
               {!looking && lookup && (lookup.ok ? (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card p-4 flex items-center gap-4 border-green/30">
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card p-4 flex items-center gap-4">
                   <Avatar name={lookup.profile.name} src={lookup.profile.avatarUrl} size={52} />
                   <div><div className="font-semibold flex items-center gap-1.5">{lookup.profile.name}{lookup.profile.verified && <Verified />}</div><div className="text-mute">@{lookup.profile.username}</div></div>
-                  <span className="ml-auto text-green text-sm font-mono">found</span>
+                  <span className="ml-auto text-green text-sm font-semibold">✓ Found</span>
                 </motion.div>
               ) : <ErrorNote msg={lookup.reason} />)}
               {health?.xMode === "mock" && <p className="text-dim text-sm">Simulation accounts: novareyes, jaxkimura, alinamarsh, theo_voss, sofiaokafor, bytezen. Try lockedlena (private) or novaparody (parody) to see rejections.</p>}
@@ -137,9 +140,9 @@ export default function Launch() {
               <div className="grid gap-3">
                 {ACTIONS.map((a) => (
                   <button key={a.id} onClick={() => setF({ ...f, action: a.id })}
-                    className={`text-left rounded-2xl border p-4 transition-all ${f.action === a.id ? "border-green/60 bg-green/[.06] shadow-[0_0_24px_rgba(61,255,162,.1)]" : "border-line bg-panel hover:border-white/20"}`}>
+                    className={`text-left rounded-2xl border p-4 transition-colors ${f.action === a.id ? "border-ink bg-panel" : "border-line bg-white hover:bg-panel"}`}>
                     <div className="flex items-center gap-3">
-                      <span className={`w-4 h-4 rounded-full border-2 ${f.action === a.id ? "border-green bg-[radial-gradient(#3dffa2_40%,transparent_45%)]" : "border-dim"}`} />
+                      <span className={`w-4 h-4 rounded-full border-2 ${f.action === a.id ? "border-ink bg-[radial-gradient(#121212_40%,transparent_45%)]" : "border-dim"}`} />
                       <span className="font-semibold">{a.title}</span>
                     </div>
                     <p className="text-mute text-sm mt-1.5 ml-7">{a.desc.replace("TICKER", ticker)}</p>
@@ -152,7 +155,7 @@ export default function Launch() {
                 </Field>
               )}
               <Field label={`Deadline: ${f.deadlineDays} days`} hint="If nothing is verified by then, the pot is burned. It never goes to holders.">
-                <input type="range" min={7} max={365} value={f.deadlineDays} onChange={set("deadlineDays")} className="w-full accent-[#3dffa2]" />
+                <input type="range" min={7} max={365} value={f.deadlineDays} onChange={set("deadlineDays")} className="w-full accent-black" />
               </Field>
             </>)}
 
@@ -173,7 +176,7 @@ export default function Launch() {
               )}
               {auth.wallet && <p className="text-mute text-sm">Creator wallet: <span className="font-mono text-ink">{auth.wallet.slice(0, 6)}…{auth.wallet.slice(-6)}</span> (your {RULES.fees.split.creatorBps / 100}% share goes here){onchain && balance !== null && <> · balance <span className="text-ink">{balance.toFixed(3)} SOL</span></>}</p>}
               {onchain && auth.wallet && balance !== null && balance < 0.05 + firstBuy && (
-                <div className="rounded-xl border border-gold/30 bg-gold/[.06] px-4 py-3 text-sm flex flex-wrap items-center gap-3">
+                <div className="rounded-xl bg-[#fff4d6] px-4 py-3 text-sm flex flex-wrap items-center gap-3">
                   <span>You need about {(0.05 + firstBuy).toFixed(2)} SOL on {health?.cluster} to launch (network fees + your first buy).</span>
                   {health?.cluster !== "mainnet-beta" && (health?.devTools
                     ? <button className="btn btn-ghost h-9 text-sm" onClick={async () => { try { await airdrop(auth.wallet!, 2); setStage(null); setBalance((await balanceOf(auth.wallet!).then((b) => Number(b.lamports) / 1e9))); } catch (e) { setErr((e as Error).message); } }}>Get 2 test SOL</button>
@@ -197,26 +200,22 @@ export default function Launch() {
         )}
       </div>
 
-      {/* live preview */}
+      {/* live preview: the card as it will appear in Explore */}
       <div className="lg:sticky lg:top-24 h-fit">
-        <div className="text-mute text-xs font-mono uppercase tracking-widest mb-3">Preview</div>
-        <div className="card p-6 flex flex-col gap-5 relative overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/vault-lock.webp" alt="" width={120} height={120} className="bob drop absolute right-4 top-4 w-20 opacity-90 pointer-events-none" style={{ ["--r" as string]: "8deg" }} />
-          <div className="flex items-center gap-3">
-            <Avatar name={f.name || "Coin"} src={f.imageUrl || null} size={48} square />
-            <div><div className="font-semibold text-lg">{f.name || "Your coin"}</div><div className="text-xblue font-medium">${ticker}</div></div>
-          </div>
-          <div>
-            <div className="eyebrow">Bounty pot</div>
-            <div className="gold-text text-4xl font-bold mt-1 tabular">0.000 <span className="text-2xl">SOL</span></div>
-            <div className="text-dim text-sm mt-1">Fills with every trade</div>
-          </div>
-          <div className="rounded-xl border border-line bg-panel p-4 flex items-center gap-3">
-            <Avatar name={target?.name ?? "?"} src={target?.avatarUrl} size={40} />
-            <div className="text-sm min-w-0">
-              <div className="font-medium flex items-center gap-1">{target ? <>@{target.username}{target.verified && <Verified size={14} />}</> : <span className="text-dim">Pick a target</span>}</div>
-              <div className="text-mute">{actionText(f.action, ticker, f.phrase || "…")}</div>
+        <div className="text-sm font-semibold text-mute mb-3">Preview</div>
+        <div className="card overflow-hidden max-w-[360px]">
+          <TokenImage name={f.name || "Coin"} ticker={ticker} src={f.imageUrl || null} rounded="" className="w-full aspect-square" textSize="text-4xl" />
+          <div className="p-4 flex flex-col gap-3">
+            <div>
+              <div className="font-semibold">{f.name || "Your coin"} <span className="text-mute font-medium">${ticker}</span></div>
+              <div className="flex items-center gap-1.5 text-sm text-mute mt-1">
+                {target ? <><Avatar name={target.name} src={target.avatarUrl} size={18} />@{target.username}{target.verified && <Verified size={13} />}</> : "Pick a target"}
+              </div>
+            </div>
+            <div className="text-sm">{actionText(f.action, ticker, f.phrase || "…")}</div>
+            <div className="flex items-end justify-between pt-3 border-t border-line">
+              <div><div className="text-xs text-mute">Pot</div><div className="font-semibold">0.000 SOL</div></div>
+              <div className="text-xs text-mute">{f.deadlineDays} days</div>
             </div>
           </div>
         </div>
@@ -228,7 +227,7 @@ export default function Launch() {
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-2">
-      <span className="text-sm text-mute">{label}</span>
+      <span className="text-sm font-semibold">{label}</span>
       {children}
       {error ? <span className="text-sm text-red">{error}</span> : hint ? <span className="text-sm text-dim">{hint}</span> : null}
     </label>

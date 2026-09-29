@@ -4,19 +4,37 @@ import { useEffect, useRef, useState } from "react";
 import type { BountyStatus, CheckResult } from "@bountypad/shared";
 import { STATUS } from "@/lib/format";
 
-/** The Bounty Pad mark (generated with Higgsfield / Recraft, vector): a gold coin reticle with a green check. */
+/** The Bounty Pad mark (generated with Higgsfield / Recraft V4.1, vector): a "b" whose bowl is a target. */
 export function LogoMark({ size = 28 }: { size?: number }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/brand/logo-mark.svg" width={size} height={size} alt="" aria-hidden className="shrink-0" />;
+  return <img src="/brand/logo.svg" width={size} height={size} alt="" aria-hidden className="shrink-0" />;
 }
 
 /** Mark + wordmark. */
-export function Logo({ size = 30 }: { size?: number }) {
+export function Logo({ size = 32 }: { size?: number }) {
   return (
     <span className="flex items-center gap-2.5">
       <LogoMark size={size} />
-      <span className="font-semibold tracking-[-0.03em] text-[19px] leading-none">Bounty<span className="serif-accent text-gold text-[22px] ml-[1px]">Pad</span></span>
+      <span className="font-bold tracking-[-0.02em] text-[19px] leading-none text-ink">Bounty Pad</span>
     </span>
+  );
+}
+
+/**
+ * A coin's picture, used as a cover (cards, token page). Without an uploaded image it falls
+ * back to a soft colour field with the ticker, so every coin still has a recognisable face.
+ */
+export function TokenImage({ name, ticker, src, className = "", rounded = "rounded-xl", textSize = "text-4xl" }: { name: string; ticker: string; src?: string | null; className?: string; rounded?: string; textSize?: string }) {
+  const [broken, setBroken] = useState(false);
+  if (src && !broken) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={name} onError={() => setBroken(true)} className={`${rounded} object-cover bg-panel ${className}`} />;
+  }
+  const g = GRADS[hash(ticker || name) % GRADS.length];
+  return (
+    <div className={`${rounded} flex items-center justify-center ${className}`} style={{ background: `linear-gradient(140deg, ${g[0]}, ${g[1]})` }}>
+      <span className={`font-bold tracking-tight text-white/95 ${textSize}`}>${ticker}</span>
+    </div>
   );
 }
 
@@ -37,7 +55,7 @@ export function Verified({ size = 16 }: { size?: number }) {
   );
 }
 
-const GRADS = [["#ff7a59", "#b04cff"], ["#3dffa2", "#1d9bf0"], ["#f7c75a", "#ff5f6d"], ["#6a8dff", "#b04cff"], ["#14f195", "#9945ff"], ["#ff9a8b", "#ff6a88"], ["#43cbff", "#9708cc"], ["#5ee7df", "#b490ca"]];
+const GRADS = [["#ffd36e", "#ff9f5a"], ["#9ec5ff", "#6f8cff"], ["#ffb3c7", "#ff7aa2"], ["#b7f0d0", "#56c596"], ["#d7c4ff", "#9b7bff"], ["#ffe29a", "#ffc72c"], ["#a6e3ff", "#4fb3e8"], ["#ffc9a8", "#ff8a65"]];
 function hash(s: string) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 
 /** Initials on a gradient, generated from the name. Real avatars come from X in REAL mode. */
@@ -55,11 +73,11 @@ export function Avatar({ name, src, size = 40, square = false }: { name: string;
 }
 
 const TONE = {
-  green: "text-green border-green/40 bg-green/10",
-  gold: "text-gold border-gold/40 bg-gold/10",
-  blue: "text-xblue border-xblue/40 bg-xblue/10",
-  mute: "text-mute border-line bg-white/5",
-  red: "text-red border-red/40 bg-red/10",
+  green: "text-green border-transparent bg-green/10",
+  gold: "text-gold border-transparent bg-[#fff4d6]",
+  blue: "text-xblue border-transparent bg-xblue/10",
+  mute: "text-mute border-transparent bg-panel",
+  red: "text-red border-transparent bg-red/10",
 };
 
 export function StatusPill({ status, big = false }: { status: BountyStatus; big?: boolean }) {
@@ -92,7 +110,7 @@ export function Counter({ value, format, className = "" }: { value: number; form
   return <span className={`tabular ${className}`}>{format(shown)}</span>;
 }
 
-export function Sparkline({ points, height = 64, color = "#f7c75a" }: { points: number[]; height?: number; color?: string }) {
+export function Sparkline({ points, height = 64, color = "#121212" }: { points: number[]; height?: number; color?: string }) {
   if (points.length < 2) return <div style={{ height }} />;
   const w = 600, max = Math.max(...points), min = Math.min(...points);
   const xy = points.map((p, i) => [(i / (points.length - 1)) * w, height - 4 - ((p - min) / (max - min || 1)) * (height - 10)]);
@@ -129,8 +147,8 @@ export function StatusTimeline({ status, video }: { status: BountyStatus; video:
         return (
           <div key={s.key} className="flex items-center flex-1 last:flex-none">
             <div className="flex flex-col items-center gap-2 min-w-[64px]">
-              <div className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all duration-500 ${done ? "bg-green border-green" : on ? "border-green shadow-[0_0_20px_rgba(61,255,162,.45)]" : "border-line bg-panel"}`}>
-                {done ? <svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#03140b" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <div className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all duration-500 ${done ? "bg-green border-green" : on ? "border-green" : "border-line bg-panel"}`}>
+                {done ? <svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#ffffff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   : <span className={`w-2 h-2 rounded-full ${on ? "bg-green live-dot" : "bg-dim"}`} />}
               </div>
               <span className={`text-xs whitespace-nowrap ${done || on ? "text-ink" : "text-dim"}`}>{s.label}</span>
@@ -149,7 +167,7 @@ export function CheckList({ checks }: { checks: CheckResult[] }) {
       {checks.map((c) => (
         <div key={c.id} className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 h-12">
           <span className={`w-6 h-6 rounded-full flex items-center justify-center ${c.pass ? "bg-green" : "bg-red/90"}`}>
-            {c.pass ? <svg width="13" height="13" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#03140b" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {c.pass ? <svg width="13" height="13" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#ffffff" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
               : <svg width="11" height="11" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" /></svg>}
           </span>
           <span className="text-[15px]">{c.label}</span>
@@ -182,7 +200,7 @@ export function Section({ title, right, children, className = "" }: { title: str
   return (
     <section className={className}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-[13px] font-mono uppercase tracking-[.14em] text-mute">{title}</h2>
+        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-ink">{title}</h2>
         {right}
       </div>
       {children}
@@ -195,7 +213,7 @@ export function Empty({ children }: { children: React.ReactNode }) {
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-2xl bg-white/[.04] ${className}`} />;
+  return <div className={`animate-pulse rounded-2xl bg-panel ${className}`} />;
 }
 
 export function ErrorNote({ msg }: { msg: string }) {

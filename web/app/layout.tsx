@@ -13,29 +13,29 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "Bounty Pad: make them earn it" },
 };
 
-export const viewport = { themeColor: "#060709" };
+export const viewport = { themeColor: "#ffffff" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen">
         <Providers>
-          <div className="grid-bg" />
           <Nav />
-          <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">{children}</main>
-          <footer className="relative z-10 border-t border-line mt-24">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 flex flex-col md:flex-row gap-8 md:items-center justify-between">
-              <div className="flex flex-col gap-3">
+          <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 sm:py-8">{children}</main>
+          <footer className="border-t border-line mt-20 bg-panel/60">
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-10 flex flex-col md:flex-row gap-8 md:items-start justify-between">
+              <div className="flex flex-col gap-3 max-w-sm">
                 <Logo />
-                <span className="text-sm text-dim">Every meme coin is a public challenge. Devnet preview.</span>
+                <span className="text-sm text-mute leading-relaxed">Launch a meme coin with a public challenge for anyone on X. Fees are locked on Solana until they do it.</span>
               </div>
-              <nav className="flex gap-6 text-sm text-mute">
-                <Link href="/" className="hover:text-ink">Explore</Link>
-                <Link href="/launch" className="hover:text-ink">Launch</Link>
-                <Link href="/claim" className="hover:text-ink">Claim a bounty</Link>
-              </nav>
+              <div className="flex gap-14 text-sm">
+                <div className="flex flex-col gap-2.5"><span className="font-semibold">Bounty Pad</span><Link href="/" className="text-mute hover:text-ink">Explore</Link><Link href="/launch" className="text-mute hover:text-ink">Launch a coin</Link><Link href="/claim" className="text-mute hover:text-ink">Claim a bounty</Link></div>
+              </div>
             </div>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8 text-xs text-dim">Coins are not endorsed by the people they name. Nothing here is financial advice.</div>
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-5 border-t border-line text-xs text-dim flex flex-col sm:flex-row gap-2 justify-between">
+              <span>Devnet preview</span>
+              <span>Coins are not endorsed by the people they name. Nothing here is financial advice.</span>
+            </div>
           </footer>
         </Providers>
       </body>

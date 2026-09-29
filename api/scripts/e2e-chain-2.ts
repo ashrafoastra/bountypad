@@ -34,7 +34,7 @@ async function main() {
   const rnd = () => Math.random().toString(36).slice(2, 6).toUpperCase().replace(/[^A-Z]/g, "Q");
 
   async function coin(ticker: string, target: string) {
-    const prep = await call("POST", "/api/launch/prepare", { name: `Coin ${ticker}`, ticker, creatorWallet: creator, targetHandle: target, action: "TWEET_CASHTAG" });
+    const prep = await call("POST", "/api/launch/prepare", { imageUrl: "https://example.com/coin.png", name: `Coin ${ticker}`, ticker, creatorWallet: creator, targetHandle: target, action: "TWEET_CASHTAG" });
     const r = await call("POST", "/api/launch/submit", { launchId: prep.launchId, signedTransaction: await signTx(creator, prep.transaction) });
     const t = await call("POST", "/api/trade/prepare", { tokenId: r.id, wallet: trader, side: "BUY", amount: String(3e9) });
     await call("POST", "/api/trade/submit", { tradeId: t.tradeId, signedTransaction: await signTx(trader, t.transaction) });
@@ -81,7 +81,7 @@ async function main() {
   ok(`${Number(burn.data.lamports) / 1e9} SOL pot (was ${Number(potB) / 1e9}) bought $${(await bountyOf(B.id)).token.ticker} and burned it`);
 
   step("an opted-out person can't be targeted again");
-  try { await call("POST", "/api/launch/prepare", { name: "X", ticker: "N" + rnd(), creatorWallet: creator, targetHandle: "alinamarsh", action: "TWEET_CASHTAG" }); throw new Error("accepted"); }
+  try { await call("POST", "/api/launch/prepare", { imageUrl: "https://example.com/coin.png", name: "X", ticker: "N" + rnd(), creatorWallet: creator, targetHandle: "alinamarsh", action: "TWEET_CASHTAG" }); throw new Error("accepted"); }
   catch (e) { if (!String(e).includes("opted out")) throw e; ok("rejected"); }
 
   console.log("\nALL GOOD: freeze/unfreeze/pay with a linked wallet, opt-out burn\n");

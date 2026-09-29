@@ -65,13 +65,14 @@ export async function simVotes(ctx: Ctx, roundId: string, yesShare: number, turn
   return voters.length;
 }
 
+/** Demo coins. Their logos (web/public/demo) were generated with Higgsfield for the simulation. */
 const SEED = [
-  { name: "Rocket", ticker: "ROCKET", target: "novareyes", action: "TWEET_CASHTAG", trades: 60 },
-  { name: "Jax Coin", ticker: "JAX", target: "jaxkimura", action: "VIDEO_PHRASE", phrase: "I am holding Jax coin", trades: 45 },
-  { name: "Marsh Mallow", ticker: "MALLOW", target: "alinamarsh", action: "QUOTE_LAUNCH", trades: 30 },
-  { name: "Voss Mode", ticker: "VOSS", target: "theo_voss", action: "TWEET_CONTRACT", trades: 22 },
-  { name: "Okafor Gold", ticker: "OKGOLD", target: "sofiaokafor", action: "TWEET_CASHTAG", trades: 38 },
-  { name: "Zen Byte", ticker: "ZEN", target: "bytezen", action: "TWEET_CASHTAG", trades: 52 },
+  { name: "Rocket", ticker: "ROCKET", img: "rocket", target: "novareyes", action: "TWEET_CASHTAG", trades: 60 },
+  { name: "Jax Coin", ticker: "JAX", img: "cat", target: "jaxkimura", action: "VIDEO_PHRASE", phrase: "I am holding Jax coin", trades: 45 },
+  { name: "Marsh Mallow", ticker: "MALLOW", img: "mallow", target: "alinamarsh", action: "QUOTE_LAUNCH", trades: 30 },
+  { name: "Voss Mode", ticker: "VOSS", img: "owl", target: "theo_voss", action: "TWEET_CONTRACT", trades: 22 },
+  { name: "Okafor Gold", ticker: "OKGOLD", img: "lion", target: "sofiaokafor", action: "TWEET_CASHTAG", trades: 38 },
+  { name: "Zen Byte", ticker: "ZEN", img: "robot", target: "bytezen", action: "TWEET_CASHTAG", trades: 52 },
 ] as const;
 
 /** First boot in SIM mode: a few live coins with trading history, one already paid out. */
@@ -81,7 +82,7 @@ export async function seed(ctx: Ctx) {
   const ids: Record<string, { id: string; bountyId: string }> = {};
   for (const s of SEED) {
     ids[s.ticker] = await launch(ctx, {
-      name: s.name, ticker: s.ticker, creatorWallet: SIM_CREATOR, targetHandle: s.target,
+      name: s.name, ticker: s.ticker, imageUrl: `${ctx.env.webOrigin}/demo/${s.img}.webp`, creatorWallet: SIM_CREATOR, targetHandle: s.target,
       action: s.action, phrase: "phrase" in s ? s.phrase : null, description: `${s.name} challenge coin (simulated)`,
     });
     for (let i = 0; i < s.trades; i++) await simTrade(ctx, ids[s.ticker].id, { side: i < 8 ? "BUY" : undefined, quiet: true });

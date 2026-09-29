@@ -33,7 +33,7 @@ beforeEach(async () => {
 
 async function coin(o: Partial<{ ticker: string; target: string; action: string; phrase: string; creator: string }> = {}) {
   const r = await launch(ctx, {
-    name: "Test " + (o.ticker ?? "ROCKET"), ticker: o.ticker ?? "ROCKET", creatorWallet: o.creator ?? SIM_CREATOR,
+    name: "Test " + (o.ticker ?? "ROCKET"), ticker: o.ticker ?? "ROCKET", creatorWallet: o.creator ?? SIM_CREATOR, imageUrl: "https://example.com/coin.png",
     targetHandle: o.target ?? "novareyes", action: o.action ?? "TWEET_CASHTAG", phrase: o.phrase ?? null,
   });
   await sleep(5); // posts must be strictly after launch

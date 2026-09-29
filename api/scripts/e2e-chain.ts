@@ -44,7 +44,7 @@ async function main() {
   step("launch: prepare -> creator's wallet signs -> submit");
   const ticker = "E" + Math.random().toString(36).slice(2, 6).toUpperCase().replace(/[^A-Z]/g, "X");
   const prep = await call("POST", "/api/launch/prepare", {
-    name: "E2E Coin", ticker, description: "end to end", creatorWallet: creator,
+    name: "E2E Coin", imageUrl: "https://example.com/coin.png", ticker, description: "end to end", creatorWallet: creator,
     targetHandle: "novareyes", action: "TWEET_CASHTAG", deadlineDays: 30, firstBuySol: 0.5,
   });
   const launched = await call("POST", "/api/launch/submit", { launchId: prep.launchId, signedTransaction: await signTx(creator, prep.transaction) });
@@ -55,7 +55,7 @@ async function main() {
 
   step("the same cashtag challenge can't be launched twice");
   try {
-    await call("POST", "/api/launch/prepare", { name: "Dup", ticker, creatorWallet: creator, targetHandle: "novareyes", action: "TWEET_CASHTAG" });
+    await call("POST", "/api/launch/prepare", { imageUrl: "https://example.com/coin.png", name: "Dup", ticker, creatorWallet: creator, targetHandle: "novareyes", action: "TWEET_CASHTAG" });
     throw new Error("duplicate was accepted");
   } catch (e) { if (!String(e).includes("already exists")) throw e; ok("duplicate rejected"); }
 

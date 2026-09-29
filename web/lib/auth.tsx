@@ -57,8 +57,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       config={{
         loginMethods: ["wallet", "twitter", "email"],
         appearance: {
-          theme: "dark",
-          accentColor: "#3dffa2",
+          theme: "light",
+          accentColor: "#121212",
           walletChainType: "solana-only",
           showWalletLoginFirst: true,
           landingHeader: "Connect to Bounty Pad",

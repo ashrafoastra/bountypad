@@ -67,7 +67,7 @@ export default function Dev() {
             <input className="input" placeholder={f.kind === "text" ? "e.g. ok fine, you win. $ROCKET" : "Post text (optional)"} value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} />
             {f.kind === "video" && (<>
               <textarea className="input" rows={2} placeholder="What they say in the video (transcript)" value={f.transcript} onChange={(e) => setF({ ...f, transcript: e.target.value })} />
-              <label className="text-sm text-mute">Length: {f.duration}s <input type="range" min={5} max={300} value={f.duration} onChange={(e) => setF({ ...f, duration: +e.target.value })} className="w-full accent-[#3dffa2]" /></label>
+              <label className="text-sm text-mute">Length: {f.duration}s <input type="range" min={5} max={300} value={f.duration} onChange={(e) => setF({ ...f, duration: +e.target.value })} className="w-full accent-black" /></label>
             </>)}
             <div className="flex gap-4 text-sm text-mute">
               <label className="flex items-center gap-2"><input type="checkbox" checked={f.reply} onChange={(e) => setF({ ...f, reply: e.target.checked })} /> as a reply</label>
@@ -118,7 +118,7 @@ export default function Dev() {
       <Section title="All coins">
         <div className="card divide-y divide-line">
           {tokens?.map((t) => (
-            <Link key={t.token.id} href={`/token/${t.token.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[.02]">
+            <Link key={t.token.id} href={`/token/${t.token.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-panel">
               <span className="text-xblue w-20">${t.token.ticker}</span><span className="text-mute text-sm">@{t.target.username}</span>
               <span className="text-dim text-sm hidden sm:inline">{t.bounty.action}</span>
               <span className="ml-auto"><StatusPill status={t.bounty.status} /></span>
@@ -137,7 +137,7 @@ function VoteBots({ t, run }: { t: TokenSummary; run: (l: string, fn: () => Prom
   return (
     <div className="rounded-xl border border-line p-3 flex flex-wrap items-center gap-2 text-sm">
       <span>${t.token.ticker} vote</span>
-      <Link className="text-green" href={`/vote/${round.id}`}>open</Link>
+      <Link className="text-xblue font-semibold hover:underline" href={`/vote/${round.id}`}>open</Link>
       <span className="ml-auto flex gap-2">
         <button className="btn btn-ghost h-8 px-3 text-xs" onClick={() => run("Bots voted mostly YES", () => api(`/api/dev/votes/${round.id}`, { method: "POST", json: { yesShare: 0.85 } }))}>Bots: YES</button>
         <button className="btn btn-ghost h-8 px-3 text-xs" onClick={() => run("Bots voted mostly NO", () => api(`/api/dev/votes/${round.id}`, { method: "POST", json: { yesShare: 0.2 } }))}>Bots: NO</button>

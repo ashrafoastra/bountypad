@@ -70,7 +70,7 @@ The coin launch, trades, the locked pot and the payout run on Solana with `CHAIN
 - **/dev:** post as the target. The pipeline verifies the post, the escrow verifies it on-chain with 2 of 3 signatures, and after the challenge window the pot is paid on-chain. If the target has no wallet yet, it waits until they log in on **/claim**.
 - To go back to the full simulation: `CHAIN=sim` in `api/.env`.
 
-**Real X:** put `X_BEARER_TOKEN=...` in `api/.env` (from developer.x.com). Target lookups and post detection then use the real X API, which is pay-per-use.
+**Real X:** in developer.x.com → your app → **Keys and tokens**, generate the **Bearer Token** and put it in `api/.env` as `X_BEARER_TOKEN=...` (or put the **API Key** and **API Key Secret** as `X_API_KEY` / `X_API_SECRET`). Then check it with one lookup (about $0.01): `npm run x:check -w api -- elonmusk`. The API is pay-per-use, so the account needs credits in the developer console. Note: the OAuth 2.0 **Client ID / Client Secret** are for "Log in with X", not for reading posts; they can go in Privy (Login methods → X → use your own credentials) if you want the X login screen to show your app's name.
 
 **Tests:**
 ```bash

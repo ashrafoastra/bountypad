@@ -52,20 +52,20 @@ export function TradePanel({ token, health }: { token: Token; health: Health }) 
   const age = (Date.now() - Date.parse(token.createdAt)) / 1000;
   const earlyFee = fs && age < fs.decaySeconds ? (fs.startingFeeBps * Math.pow(fs.endingFeeBps / fs.startingFeeBps, Math.max(0, age) / fs.decaySeconds)) / 100 : null;
   return (
-    <div className="card p-6">
+    <div className="card p-5">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-mute text-xs font-mono uppercase tracking-widest">Trade</span>
-        <span className="text-xs text-dim font-mono">Meteora bonding curve · {health.cluster}</span>
+        <span className="font-semibold">Trade</span>
+        <span className="text-xs text-mute">Meteora bonding curve · {health.cluster}</span>
       </div>
       {earlyFee !== null && fs && (
-        <div className="rounded-xl border border-gold/30 bg-gold/[.06] px-3 py-2 text-xs mb-4">
+        <div className="rounded-xl bg-[#fff4d6] px-3 py-2 text-xs mb-4">
           Launch fee active: about <span className="text-gold font-semibold">{earlyFee.toFixed(1)}%</span> right now, dropping to {fs.endingFeeBps / 100}% in {Math.ceil(fs.decaySeconds - age)}s. It stops snipers.
         </div>
       )}
-      <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-panel border border-line mb-4">
+      <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-panel mb-4">
         {(["BUY", "SELL"] as const).map((s) => (
           <button key={s} onClick={() => { setSide(s); setAmount(s === "BUY" ? "0.1" : ""); setMsg(null); }}
-            className={`h-10 rounded-lg text-sm font-semibold transition-colors ${side === s ? (s === "BUY" ? "bg-green/15 text-green" : "bg-red/15 text-red") : "text-mute"}`}>{s === "BUY" ? "Buy" : "Sell"}</button>
+            className={`h-10 rounded-lg text-sm font-semibold transition-colors ${side === s ? "bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,.08)]" : "text-mute"}`}>{s === "BUY" ? "Buy" : "Sell"}</button>
         ))}
       </div>
       <div className="relative">
@@ -80,7 +80,7 @@ export function TradePanel({ token, health }: { token: Token; health: Health }) 
       {auth.wallet && bal && (
         <div className="text-xs text-dim mt-3 flex justify-between"><span>{bal.sol.toFixed(3)} SOL</span><span>{bal.tokens.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${token.ticker}</span></div>
       )}
-      <button className={`btn w-full h-12 mt-4 ${side === "BUY" ? "btn-primary" : "btn-ghost border-red/40 text-red"}`} disabled={!!stage} onClick={trade}>
+      <button className={`btn w-full h-12 mt-4 ${side === "BUY" ? "btn-primary" : "btn-outline text-red"}`} disabled={!!stage} onClick={trade}>
         {stage ?? (!auth.wallet ? "Connect wallet to trade" : side === "BUY" ? `Buy $${token.ticker}` : `Sell $${token.ticker}`)}
       </button>
       {msg && (
@@ -92,8 +92,8 @@ export function TradePanel({ token, health }: { token: Token; health: Health }) 
         <p className="text-xs text-mute mt-3">
           Need test SOL?{" "}
           {health.devTools
-            ? <button className="underline text-gold" onClick={async () => { try { await airdrop(auth.wallet!, 2); refresh(); } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } }}>Get 2 SOL</button>
-            : <a className="underline text-gold" href="https://faucet.solana.com" target="_blank" rel="noreferrer">faucet.solana.com</a>}
+            ? <button className="font-semibold underline" onClick={async () => { try { await airdrop(auth.wallet!, 2); refresh(); } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } }}>Get 2 SOL</button>
+            : <a className="font-semibold underline" href="https://faucet.solana.com" target="_blank" rel="noreferrer">faucet.solana.com</a>}
         </p>
       )}
       <p className="text-xs text-dim mt-3">Every trade pays a fee. Part of it fills this coin's pot, locked in the escrow until the challenge is verified.</p>

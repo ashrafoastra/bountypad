@@ -1,230 +1,221 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import type { FeedEvent, Stats, TokenSummary } from "@bountypad/shared";
 import { useEvents, useHealth, useLive } from "@/lib/api";
-import { actionText, fmtUsd, sol } from "@/lib/format";
-import { Avatar, Counter, Empty, Section, Skeleton, StatusPill, XIcon } from "@/components/ui";
-import { FeedItem, TokenCard, feedText } from "@/components/cards";
-import { Hero3D } from "@/components/Hero3D";
+import { actionText, countdown, sol } from "@/lib/format";
+import { Avatar, Counter, Skeleton, TokenImage, Verified } from "@/components/ui";
+import { FeedItem, TokenCard, TokenRow } from "@/components/cards";
 
-const ease = [0.2, 0.8, 0.2, 1] as const;
-const rise = (delay: number) => ({ initial: { opacity: 0, y: 22, filter: "blur(10px)" }, animate: { opacity: 1, y: 0, filter: "blur(0px)" }, transition: { delay, duration: 0.8, ease } });
+const LIVE = ["OPEN", "DETECTED_CONFIRMING", "VOTING"];
+type Filter = "all" | "live" | "paid";
 
-const STEPS = [
-  { img: "/brand/coin-stack.webp", title: "Launch a coin", body: "Name, ticker, image. It goes live on a Meteora bonding curve in one signature." },
-  { img: "/brand/cashtag-bubble.webp", title: "Name anyone on X", body: "Pick the person and the challenge: post the cashtag, the contract, quote the launch, or say a phrase on video." },
-  { img: "/brand/vault-lock.webp", title: "Fees lock on-chain", body: "Every trade feeds a pot held by our escrow program. It only moves by the program's rules." },
-  { img: "/brand/verified-badge.webp", title: "They do it, they get paid", body: "We watch X, verify the post, wait out a public challenge window, and the escrow pays their wallet." },
-];
+export default function HomePage() {
+  return <Suspense><Home /></Suspense>;
+}
 
-export default function Home() {
+function Home() {
+  const q = (useSearchParams().get("q") ?? "").trim().toLowerCase();
   const { data: health } = useHealth();
   const solUsd = health?.solUsd ?? 150;
-  const [sort, setSort] = useState<"pot" | "new">("pot");
-  const { data: stats } = useLive<Stats>("/api/stats", { every: 4000, on: (e) => e.type !== "TRADE" || Math.random() < 0.3 });
-  const { data: tokens } = useLive<TokenSummary[]>(`/api/tokens?sort=${sort}`, { every: 3000, on: (e) => e.type !== "TRADE" });
-  const { data: initialFeed } = useLive<FeedEvent[]>("/api/feed?limit=30", { every: 60000, on: () => false });
+  const [filter, setFilter] = useState<Filter>("all");
+  const { data: stats } = useLive<Stats>("/api/stats", { every: 5000, on: (e) => e.type !== "TRADE" });
+  const { data: byPot } = useLive<TokenSummary[]>("/api/tokens?sort=pot", { every: 4000, on: (e) => e.type !== "TRADE" });
+  const { data: byNew } = useLive<TokenSummary[]>("/api/tokens?sort=new", { every: 6000, on: (e) => e.type === "TOKEN_LAUNCHED" });
+  const { data: initialFeed } = useLive<FeedEvent[]>("/api/feed?limit=12", { every: 60000, on: () => false });
   const [live, setLive] = useState<FeedEvent[]>([]);
-  useEvents((e) => { if (e.type !== "TRADE") setLive((l) => [e, ...l].slice(0, 30)); });
-  const feed = [...live, ...(initialFeed ?? []).filter((e) => !live.some((l) => l.id === e.id))].slice(0, 24);
-  const [trades, setTrades] = useState<FeedEvent[]>([]);
-  useEvents((e) => { if (e.type === "TRADE") setTrades((t) => [e, ...t].slice(0, 16)); });
-  const top = tokens?.find((t) => ["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(t.bounty.status)) ?? tokens?.[0];
+  useEvents((e) => { if (e.type !== "TRADE") setLive((l) => [e, ...l].slice(0, 12)); });
+  const feed = [...live, ...(initialFeed ?? []).filter((e) => !live.some((l) => l.id === e.id))].slice(0, 8);
+
+  const term = q.replace(/^[$@]/, "");
+  const match = (s: TokenSummary) => !term || [s.token.name, s.token.ticker, s.target.username, s.target.name].some((v) => v.toLowerCase().includes(term));
+  const top = useMemo(
+    () => (byPot ?? []).filter(match).filter((s) => filter === "all" || (filter === "live" ? LIVE.includes(s.bounty.status) : s.bounty.status === "PAID")).slice(0, 10),
+    [byPot, filter, term], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const newest = (byNew ?? []).filter(match).slice(0, 5); // one clean row, like a marketplace shelf
+  const featured = (byPot ?? []).filter((s) => LIVE.includes(s.bounty.status)).slice(0, 4);
 
   return (
-    <div className="flex flex-col gap-24 sm:gap-32">
-      {/* ---------- hero ---------- */}
-      <section className="grid lg:grid-cols-[1.05fr_1fr] gap-10 lg:gap-6 items-center pt-2 sm:pt-8">
-        <div className="min-w-0 text-center lg:text-left flex flex-col items-center lg:items-start">
-          <motion.div {...rise(0)} className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[.03] pl-3 pr-4 py-1.5 text-sm text-mute">
-            <span className="live-dot" /> Every meme coin is a public challenge
-          </motion.div>
-          <motion.h1 {...rise(0.12)} className="mt-7 text-[52px] sm:text-[84px] lg:text-[96px] leading-[.95] font-semibold tracking-[-0.055em] text-balance">
-            Make them <span className="serif-accent gold-text pr-1 text-[1.08em]">earn</span>&nbsp;it.
-          </motion.h1>
-          <motion.p {...rise(0.28)} className="mt-7 text-mute text-lg sm:text-xl max-w-xl leading-relaxed">
-            Launch a meme coin, name anyone on <XIcon size={18} className="inline -mt-1 text-ink" />, set the challenge. Trading fees fill a pot locked on Solana. They get it only when they do it, verified automatically.
-          </motion.p>
-          <motion.div {...rise(0.42)} className="flex flex-wrap justify-center lg:justify-start gap-3 mt-9">
-            <Link href="/launch" className="btn btn-primary h-14 px-7 text-[17px]">Launch a coin <span aria-hidden>→</span></Link>
-            <a href="#bounties" className="btn btn-ghost h-14 px-7 text-[17px]">Browse live bounties</a>
-          </motion.div>
-          <motion.div {...rise(0.56)} className="flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 mt-10 text-[13px] font-mono text-dim">
-            <span className="flex items-center gap-2"><Dot c="#3dffa2" />Escrow program on Solana</span>
-            <span className="flex items-center gap-2"><Dot c="#f7c75a" />Meteora bonding curve</span>
-            <span className="flex items-center gap-2"><Dot c="#1d9bf0" />2 of 3 verifier signatures</span>
-          </motion.div>
-        </div>
+    <div className="flex flex-col gap-14">
+      {!q && <Hero featured={featured} stats={stats} />}
 
-        <div className="relative">
-          <Hero3D />
-          {/* live pot card: the biggest open challenge, floating over the scene */}
-          {top && (
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1, duration: 0.8, ease }}
-              className="relative z-20 mx-auto -mt-6 sm:mt-0 sm:absolute sm:mx-0 sm:right-2 sm:bottom-2 w-[min(330px,100%)]">
-              <Link href={`/token/${top.token.id}`} className="glass rounded-[22px] p-4 flex flex-col gap-3 hover:border-green/30 transition-colors">
-                <div className="flex items-center gap-3">
-                  <Avatar name={top.target.name} src={top.target.avatarUrl} size={36} />
-                  <div className="min-w-0 text-sm">
-                    <div className="font-semibold truncate">@{top.target.username} <span className="text-xblue font-medium">${top.token.ticker}</span></div>
-                    <div className="text-mute truncate">{actionText(top.bounty.action, top.token.ticker, top.bounty.phrase)}</div>
-                  </div>
-                </div>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="eyebrow !text-[10px]">Pot, locked</div>
-                    <Counter value={sol(top.bounty.potLamports)} format={(v) => v.toFixed(3)} className="gold-text text-[30px] font-bold tracking-tight leading-none" />
-                    <span className="text-gold/80 font-semibold ml-1.5">SOL</span>
-                  </div>
-                  <StatusPill status={top.bounty.status} />
-                </div>
-              </Link>
-            </motion.div>
-          )}
-        </div>
-      </section>
-
-      {/* ---------- numbers (Glassnode-style data row) ---------- */}
-      <section className="card !rounded-[26px] grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-line overflow-hidden">
-        {[
-          { label: "Locked in pots", v: stats ? sol(stats.lockedLamports) : 0, f: (n: number) => n.toFixed(3), unit: "SOL", sub: stats ? "≈ " + fmtUsd(sol(stats.lockedLamports) * solUsd) : "", gold: true },
-          { label: "Paid to people", v: stats ? sol(stats.paidLamports) : 0, f: (n: number) => n.toFixed(3), unit: "SOL", sub: stats ? "≈ " + fmtUsd(sol(stats.paidLamports) * solUsd) : "" },
-          { label: "Live challenges", v: stats?.liveCoins ?? 0, f: (n: number) => Math.round(n).toString(), unit: "", sub: "watched on X right now" },
-          { label: "Bounties completed", v: stats?.bountiesPaid ?? 0, f: (n: number) => Math.round(n).toString(), unit: "", sub: "verified and paid" },
-        ].map((s) => (
-          <div key={s.label} className="p-6 sm:p-7">
-            <div className="eyebrow">{s.label}</div>
-            <div className="mt-3 flex items-baseline gap-1.5">
-              <Counter value={s.v} format={s.f} className={`text-[30px] sm:text-[40px] font-semibold tracking-[-0.04em] tabular ${s.gold ? "gold-text" : ""}`} />
-              {s.unit && <span className={`font-semibold ${s.gold ? "text-gold/80" : "text-mute"}`}>{s.unit}</span>}
-            </div>
-            <div className="text-dim text-sm mt-1">{s.sub}</div>
-          </div>
-        ))}
-      </section>
-
-      {/* ---------- how it works ---------- */}
-      <section>
-        <div className="flex flex-col items-center text-center">
-          <div className="eyebrow">How it works</div>
-          <h2 className="mt-4 text-[38px] sm:text-[56px] font-semibold tracking-[-0.045em] leading-[1.02] max-w-3xl text-balance">
-            A challenge anyone can see. <span className="serif-accent text-mute">A pot nobody can touch.</span>
-          </h2>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-14">
-          {STEPS.map((s, i) => (
-            <motion.div key={s.title} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-80px" }} transition={{ delay: i * 0.1, duration: 0.7, ease }}
-              className="card card-hover p-6 flex flex-col relative overflow-hidden group">
-              <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-[radial-gradient(circle,rgba(247,199,90,.10),transparent_70%)]" />
-              <span className="step-num w-fit">0{i + 1}</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.img} alt="" width={120} height={120} className="w-28 h-28 mt-4 mb-2 self-center drop transition-transform duration-500 group-hover:-translate-y-2 group-hover:rotate-3" />
-              <h3 className="text-xl font-semibold tracking-tight mt-2">{s.title}</h3>
-              <p className="text-mute text-[15px] leading-relaxed mt-2">{s.body}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ---------- trade ticker ---------- */}
-      {trades.length > 3 && (
-        <div className="relative overflow-hidden border-y border-line py-3 -mx-4 sm:-mx-6 -my-12">
-          <div className="marquee flex gap-8 w-max whitespace-nowrap text-sm font-mono">
-            {[...trades, ...trades].map((t, i) => (
-              <span key={i} className={(t.data as any).side === "BUY" ? "text-green" : "text-red"}>
-                {feedText(t)}{health?.chain !== "solana" && <span className="text-gold"> +{(Number((t.data as any).potLamports) / 1e9).toFixed(4)} to pot</span>}
-              </span>
-            ))}
-          </div>
+      {q && (
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold truncate">Results for “{q}”</h1>
+          <Link href="/" className="btn btn-ghost h-10 text-sm shrink-0">Clear search</Link>
         </div>
       )}
 
-      {/* ---------- live bounties + feed ---------- */}
-      <div id="bounties" className="grid lg:grid-cols-[1fr_380px] gap-8 scroll-mt-24">
-        <Section title="Live bounties" right={
-          <div className="flex gap-1 text-sm p-1 rounded-xl border border-line bg-white/[.02]">
-            {(["pot", "new"] as const).map((s) => (
-              <button key={s} onClick={() => setSort(s)} className={`px-3 py-1 rounded-lg transition-colors ${sort === s ? "bg-white/[.08] text-ink" : "text-mute hover:text-ink"}`}>{s === "pot" ? "Biggest pots" : "Newest"}</button>
+      {/* ---- top bounties (the "Hot collections" table) ---- */}
+      <section id="bounties" className="scroll-mt-24">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h2 className="text-[22px] font-bold tracking-[-0.02em]">Top bounties</h2>
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-panel">
+            {(["all", "live", "paid"] as const).map((f) => (
+              <button key={f} onClick={() => setFilter(f)} className={`h-8 px-3.5 rounded-lg text-sm font-semibold transition-colors ${filter === f ? "bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,.08)]" : "text-mute hover:text-ink"}`}>
+                {f === "all" ? "All" : f === "live" ? "Live" : "Paid"}
+              </button>
             ))}
           </div>
-        }>
-          {!tokens ? (
-            <div className="grid sm:grid-cols-2 gap-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-64" />)}</div>
-          ) : tokens.length === 0 ? (
-            <Empty>No coins yet. <Link className="text-green" href="/launch">Launch the first one.</Link></Empty>
-          ) : (
-            <motion.div layout className="grid sm:grid-cols-2 gap-4">
-              <AnimatePresence>
-                {tokens.map((s) => (
-                  <motion.div key={s.token.id} layout initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 28 }}>
-                    <TokenCard s={s} solUsd={solUsd} />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </Section>
-
-        <Section title="Live feed" right={<span className="live-dot" />}>
-          <div className="card p-2 max-h-[780px] overflow-y-auto">
-            {feed.length === 0 ? <p className="text-mute p-6 text-center">Waiting for activity…</p> : (
-              <AnimatePresence initial={false}>
-                {feed.map((e) => (
-                  <motion.div key={e.id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.35 }}>
-                    <FeedItem e={e} />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            )}
+        </div>
+        <div className="hidden md:grid grid-cols-[36px_minmax(0,2.2fr)_minmax(0,2fr)_130px_150px_110px] gap-4 px-3 pb-2 text-xs font-medium text-mute border-b border-line">
+          <span className="text-center">#</span><span>Coin</span><span>Challenge</span><span>Pot</span><span>Status</span><span className="text-right">Time left</span>
+        </div>
+        {!byPot ? (
+          <div className="flex flex-col gap-2 mt-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}</div>
+        ) : top.length === 0 ? (
+          <div className="py-14 text-center text-mute">{q ? "No coins match your search." : <>No coins here yet. <Link className="text-ink font-semibold underline" href="/launch">Launch the first one.</Link></>}</div>
+        ) : (
+          <div className="flex flex-col mt-1">
+            {top.map((s, i) => <TokenRow key={s.token.id} s={s} rank={i + 1} solUsd={solUsd} />)}
           </div>
-        </Section>
-      </div>
+        )}
+      </section>
 
-      {/* ---------- why on-chain ---------- */}
-      <section className="grid lg:grid-cols-[1fr_1.1fr] gap-10 items-center">
-        <div>
-          <div className="eyebrow">Why it's different</div>
-          <h2 className="mt-4 text-[38px] sm:text-[52px] font-semibold tracking-[-0.045em] leading-[1.02] text-balance">
-            Not a payment app. <span className="serif-accent text-green">An escrow.</span>
-          </h2>
-          <p className="text-mute text-lg mt-5 max-w-lg leading-relaxed">No money is sent to people who never agreed to anything. The challenge is their consent, the chain is the custodian, and the payout works in every country.</p>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {[
-            ["Locked by a program", "Pots sit in an on-chain escrow. Only 2 of 3 verifier signatures plus a public challenge window can release them."],
-            ["Written once, never edited", "Target, challenge and deadline are stored on-chain at launch."],
-            ["Nobody profits from failure", "Missed deadlines burn the pot: it buys the coin and burns it. Holders never get it."],
-            ["Paid anywhere", "A Solana wallet tied to their X login. No bank, no country list."],
-          ].map(([t, b]) => (
-            <div key={t} className="card p-5">
-              <div className="font-semibold flex items-center gap-2"><Dot c="#3dffa2" />{t}</div>
-              <p className="text-mute text-[15px] mt-2 leading-relaxed">{b}</p>
+      {/* ---- newest challenges (card grid) ---- */}
+      {newest.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[22px] font-bold tracking-[-0.02em]">New challenges</h2>
+            <Link href="/launch" className="text-sm font-semibold text-mute hover:text-ink">Launch yours →</Link>
+          </div>
+          {/* A shelf: swipeable row on phones and tablets, one row of five on desktop. */}
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible scrollbar-none">
+            {newest.map((s) => <div key={s.token.id} className="w-[46%] sm:w-[31%] lg:w-auto shrink-0 snap-start"><TokenCard s={s} solUsd={solUsd} /></div>)}
+          </div>
+        </section>
+      )}
+
+      {!q && (
+        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-10">
+          {/* ---- how it works ---- */}
+          <section>
+            <h2 className="text-[22px] font-bold tracking-[-0.02em] mb-4">How it works</h2>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[
+                ["Launch a coin", "Name, ticker, image. It goes live on a Meteora bonding curve with one signature."],
+                ["Name anyone on X", "Choose the challenge: post the cashtag or the contract, quote the launch post, or say a phrase on video."],
+                ["Fees are locked", "Part of every trade fills the pot, held by an escrow program on Solana until the challenge is met."],
+                ["Verified, then paid", "We detect the post automatically. After a public review window the escrow pays their wallet."],
+              ].map(([t, b], i) => (
+                <div key={t} className="card p-5">
+                  <span className="step-num">{i + 1}</span>
+                  <h3 className="font-semibold mt-3">{t}</h3>
+                  <p className="text-mute text-sm leading-relaxed mt-1.5">{b}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </section>
 
-      {/* ---------- final CTA ---------- */}
-      <section className="card relative overflow-hidden !rounded-[32px] px-6 py-16 sm:py-20 text-center">
-        <div className="halo opacity-80" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/coin-tilt.webp" alt="" width={160} height={160} className="bob drop absolute -left-6 sm:left-10 top-6 w-24 sm:w-36 opacity-90" style={{ ["--r" as string]: "-12deg" }} />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/verified-badge.webp" alt="" width={140} height={140} className="bob drop absolute -right-4 sm:right-12 bottom-6 w-20 sm:w-32 opacity-90" style={{ ["--r" as string]: "10deg", ["--delay" as string]: "-2s" }} />
-        <div className="relative">
-          <h2 className="text-[40px] sm:text-[64px] font-semibold tracking-[-0.05em] leading-[.98] text-balance">
-            Who should <span className="serif-accent gold-text pr-1">earn</span> yours?
-          </h2>
-          <p className="text-mute text-lg mt-5">One signature. The challenge is live in seconds.</p>
-          <Link href="/launch" className="btn btn-primary h-14 px-8 text-[17px] mt-9">Launch a coin <span aria-hidden>→</span></Link>
+          {/* ---- activity ---- */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[22px] font-bold tracking-[-0.02em]">Activity</h2>
+              <span className="flex items-center gap-2 text-xs font-semibold text-mute"><span className="live-dot" />Live</span>
+            </div>
+            <div className="card p-1.5">
+              {feed.length === 0 ? <p className="text-mute p-6 text-center text-sm">Nothing yet.</p> : (
+                <AnimatePresence initial={false}>
+                  {feed.map((e) => (
+                    <motion.div key={e.id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.25 }}>
+                      <FeedItem e={e} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
+          </section>
         </div>
-      </section>
+      )}
     </div>
   );
 }
 
-function Dot({ c }: { c: string }) {
-  return <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: c, boxShadow: `0 0 10px ${c}` }} />;
+/** Rarible-style hero: a quiet panel with the pitch on the left and a rotating featured bounty on the right. */
+function Hero({ featured, stats }: { featured: TokenSummary[]; stats: Stats | null }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (featured.length < 2) return;
+    const t = setInterval(() => setI((x) => (x + 1) % featured.length), 5000);
+    return () => clearInterval(t);
+  }, [featured.length]);
+  const f = featured[i % Math.max(1, featured.length)];
+
+  return (
+    <section className="rounded-[24px] bg-panel p-6 sm:p-10 lg:p-14 grid lg:grid-cols-[1fr_440px] gap-10 lg:gap-16 items-center">
+      <div className="min-w-0">
+        <h1 className="text-[40px] sm:text-[56px] leading-[1.02] font-bold tracking-[-0.035em] text-balance">
+          Every meme coin is a challenge.
+        </h1>
+        <p className="text-mute text-lg mt-5 max-w-xl leading-relaxed">
+          Launch a coin and name anyone on X. Trading fees fill a pot that's locked on Solana, and it's theirs only when they complete the challenge.
+        </p>
+        <div className="grid grid-cols-2 sm:flex gap-3 mt-8">
+          <a href="#bounties" className="btn btn-primary h-12 px-4 sm:px-6 whitespace-nowrap"><span className="sm:hidden">Explore</span><span className="hidden sm:inline">Explore bounties</span></a>
+          <Link href="/launch" className="btn btn-outline h-12 px-4 sm:px-6 whitespace-nowrap">Launch a coin</Link>
+        </div>
+        <div className="grid grid-cols-3 gap-6 mt-10 max-w-lg">
+          {([
+            ["Locked in pots", stats ? sol(stats.lockedLamports) : 0, 3, "SOL"],
+            ["Paid out", stats ? sol(stats.paidLamports) : 0, 3, "SOL"],
+            ["Live challenges", stats?.liveCoins ?? 0, 0, ""],
+          ] as const).map(([label, v, dp, unit]) => (
+            <div key={label}>
+              <div className="text-[20px] sm:text-[22px] font-bold tabular whitespace-nowrap"><Counter value={v} format={(n) => n.toFixed(dp)} />{unit && <span className="text-sm font-semibold text-mute ml-1">{unit}</span>}</div>
+              <div className="text-sm text-mute mt-0.5">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        {f ? (
+          <>
+            <AnimatePresence mode="wait">
+              <motion.div key={f.token.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
+                <Link href={`/token/${f.token.id}`} className="block rounded-[20px] overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,.10)] group">
+                  <div className="relative aspect-[4/3.4] overflow-hidden">
+                    <TokenImage name={f.token.name} ticker={f.token.ticker} src={f.token.imageUrl} rounded="" className="w-full h-full transition-transform duration-500 group-hover:scale-[1.03]" textSize="text-5xl" />
+                    <div className="absolute inset-x-0 bottom-0 pt-16 p-5 bg-gradient-to-t from-black/75 via-black/35 to-transparent text-white">
+                      <div className="text-sm font-medium opacity-90">Featured bounty</div>
+                      <div className="text-xl font-bold">{f.token.name} <span className="opacity-80 font-semibold">${f.token.ticker}</span></div>
+                    </div>
+                  </div>
+                  <div className="p-4 flex items-center gap-3">
+                    <Avatar name={f.target.name} src={f.target.avatarUrl} size={36} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold flex items-center gap-1 truncate">@{f.target.username}{f.target.verified && <Verified size={13} />}</div>
+                      <div className="text-sm text-mute truncate">{actionText(f.bounty.action, f.token.ticker, f.bounty.phrase)}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold tabular"><Counter value={sol(f.bounty.potLamports)} format={(v) => v.toFixed(3)} /> SOL</div>
+                      <div className="text-xs text-mute">{countdown(f.bounty.deadline)} left</div>
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            </AnimatePresence>
+            {featured.length > 1 && (
+              <div className="flex justify-center gap-1.5 mt-5">
+                {featured.map((x, k) => (
+                  <button key={x.token.id} aria-label={`Show ${x.token.name}`} onClick={() => setI(k)} className={`h-1.5 rounded-full transition-all ${k === i % featured.length ? "w-8 bg-ink" : "w-4 bg-black/15"}`} />
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="rounded-[20px] bg-white p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,.08)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo.svg" alt="" width={64} height={64} className="mx-auto" />
+            <p className="font-semibold mt-4">No live challenges yet</p>
+            <p className="text-mute text-sm mt-1">Be the first to put a bounty on someone.</p>
+            <Link href="/launch" className="btn btn-primary h-11 mt-5">Launch a coin</Link>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }

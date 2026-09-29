@@ -46,18 +46,17 @@ export default function Claim() {
   if (!auth.x) return (
     <div className="max-w-xl mx-auto text-center flex flex-col items-center gap-6 pt-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/verified-badge.webp" alt="" width={140} height={140} className="bob drop w-28 h-28" />
-      <div className="eyebrow !text-green">Claim</div>
-      <h1 className="text-[40px] sm:text-[56px] leading-[1] font-semibold tracking-[-0.045em] text-balance">Someone put a bounty <span className="serif-accent gold-text pr-1">on you?</span></h1>
+      <img src="/brand/logo.svg" alt="" width={64} height={64} />
+      <h1 className="text-[32px] sm:text-[44px] leading-[1.1] font-bold tracking-[-0.03em] text-balance">Did someone put a bounty on you?</h1>
       <p className="text-mute text-lg">Log in with X to see every coin that names you, collect the ones you've completed, or opt out entirely. A wallet is created for you if you don't have one.</p>
       {auth.mode === "privy" ? (
         <button className="btn btn-primary h-14 px-8 text-lg" onClick={auth.loginWithX}><XIcon size={18} /> {auth.authenticated ? "Link your X account" : "Log in with X"}</button>
       ) : (
         <div className="w-full card p-4 text-left">
-          <div className="text-xs font-mono uppercase tracking-widest text-mute mb-3 px-2">Dev mode: log in as a simulated X account</div>
+          <div className="text-sm font-semibold text-mute mb-3 px-2">Test mode: log in as a simulated X account</div>
           <div className="grid gap-1">
             {users.map((u) => (
-              <button key={u.id} onClick={() => auth.devSetX?.({ id: u.id, username: u.username, name: u.name, avatarUrl: u.avatarUrl })} className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/[.05] text-left">
+              <button key={u.id} onClick={() => auth.devSetX?.({ id: u.id, username: u.username, name: u.name, avatarUrl: u.avatarUrl })} className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-panel text-left">
                 <Avatar name={u.name} src={u.avatarUrl} size={36} /><span className="font-medium flex items-center gap-1">{u.name}{u.verified && <Verified size={14} />}</span><span className="text-mute">@{u.username}</span>
               </button>
             ))}
@@ -88,7 +87,7 @@ export default function Claim() {
 
       {p && !p.optedOut && (
         <div className="card p-6">
-          <div className="text-xs font-mono uppercase tracking-widest text-mute mb-3">Payout wallet</div>
+          <div className="text-sm font-semibold text-mute mb-3">Payout wallet</div>
           {p.linkedWallet ? (
             <p>Payouts go to <span className="font-mono text-green">{short(p.linkedWallet, 6)}</span>. Completed bounties are sent automatically.</p>
           ) : (
@@ -106,11 +105,11 @@ export default function Claim() {
       {err && <ErrorNote msg={err} />}
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-mono uppercase tracking-[.14em] text-mute">Coins naming you</h2>
+        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-ink">Coins naming you</h2>
         {me && me.bounties.length === 0 && (
           <div className="card p-6 text-mute">
             No coins name you yet.
-            {health?.xMode === "mock" && <> In simulation you can <Link href="/launch" className="text-green">launch one targeting @{auth.x.username}</Link> and post as yourself from <Link href="/dev" className="text-green">Dev</Link>.</>}
+            {health?.xMode === "mock" && <> In simulation you can <Link href="/launch" className="text-xblue font-semibold hover:underline">launch one targeting @{auth.x.username}</Link> and post as yourself from <Link href="/dev" className="text-xblue font-semibold hover:underline">Dev</Link>.</>}
           </div>
         )}
         {me?.bounties.map((s) => {

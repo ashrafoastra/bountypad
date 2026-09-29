@@ -43,7 +43,7 @@ export default function VotePage() {
         <h1 className="text-4xl font-semibold tracking-tight">Did @{summary.target.username} say it?</h1>
         <p className="text-mute">The transcript was too close to call automatically, so holders at the moment the video was posted decide.</p>
         <div className="card p-5 border-gold/30">
-          <div className="text-xs font-mono uppercase tracking-widest text-mute">Required phrase</div>
+          <div className="text-sm font-semibold text-mute">Required phrase</div>
           <p className="text-2xl font-semibold mt-2 text-gold">“{summary.bounty.phrase}”</p>
         </div>
         <PostCard name={summary.target.name} username={summary.target.username} verified={summary.target.verified} text={det.text} at={ago(det.postCreatedAt)}>
@@ -51,7 +51,7 @@ export default function VotePage() {
             {det.mediaUrl?.startsWith("sim://") ? "Simulated video (no playback in SIM mode)" : det.mediaUrl ? <video src={det.mediaUrl} controls className="w-full h-full rounded-xl" /> : "No video"}
           </div>
           <div className="mt-4 rounded-xl bg-panel border border-line p-4">
-            <div className="text-xs font-mono uppercase tracking-widest text-mute mb-2">Transcript · {det.matchScore}% match</div>
+            <div className="text-sm font-semibold text-mute mb-2">Transcript · {det.matchScore}% match</div>
             <p className="italic">“{det.transcript}”</p>
           </div>
         </PostCard>
@@ -59,7 +59,7 @@ export default function VotePage() {
 
       <div className="flex flex-col gap-4 lg:sticky lg:top-24 h-fit">
         <div className="card p-6">
-          <div className="flex justify-between text-xs font-mono uppercase tracking-widest text-mute mb-5">
+          <div className="flex justify-between text-sm font-semibold text-mute mb-5">
             <span>{open ? "Voting open" : `Closed · ${round.result.toLowerCase().replace("_", " ")}`}</span>
             {open && <span className="text-ink">{countdown(round.closesAt)}</span>}
           </div>

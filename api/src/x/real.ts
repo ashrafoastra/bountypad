@@ -7,7 +7,29 @@ import type { XPost, XProvider, XUser, XMedia, RefType } from "./types";
  * accepts both. Confirm with one live call before launch (docs/decisions.md, Test C).
  */
 export class RealX implements XProvider {
-  constructor(private bearer: string, private style: "tweet" | "post" = "tweet", private base = "https://api.x.com/2") {}
+  constructor(private bearer: string, private style: "tweet" | "post" = "tweet", private base = "https://api.x.com/2", private consumer?: { key: string; secret: string }) {}
+
+  /**
+   * App-only auth. Uses X_BEARER_TOKEN, or exchanges the API Key + Secret for one
+   * (POST /oauth2/token, grant_type=client_credentials: https://docs.x.com/fundamentals/authentication/oauth-2-0/application-only).
+   * Note: the OAuth 2.0 "Client ID / Client Secret" pair is for user login, not for this.
+   */
+  private async token(): Promise<string> {
+    if (this.bearer) return this.bearer;
+    if (!this.consumer) throw new Error("X credentials missing: set X_BEARER_TOKEN (or X_API_KEY + X_API_SECRET)");
+    const res = await fetch(new URL("/oauth2/token", this.base).toString(), {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + Buffer.from(`${encodeURIComponent(this.consumer.key)}:${encodeURIComponent(this.consumer.secret)}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: "grant_type=client_credentials",
+    });
+    const body: any = await res.json().catch(() => ({}));
+    if (!res.ok || !body.access_token) throw new Error(`X rejected the API Key/Secret (${res.status}). Check them in the developer portal, or use X_BEARER_TOKEN.`);
+    this.bearer = body.access_token;
+    return this.bearer;
+  }
 
   private get postParams() {
     const f = this.style === "tweet" ? "tweet.fields" : "post.fields";
@@ -23,7 +45,12 @@ export class RealX implements XProvider {
   private async get(path: string, params: Record<string, string | undefined> = {}) {
     const u = new URL(this.base + path);
     for (const [k, v] of Object.entries(params)) if (v) u.searchParams.set(k, v);
-    const res = await fetch(u, { headers: { Authorization: `Bearer ${this.bearer}` } });
+    const res = await fetch(u, { headers: { Authorization: `Bearer ${await this.token()}` } });
+    if (res.status === 401) throw new Error("X API 401: the bearer token is invalid or revoked");
+    if (res.status === 402 || res.status === 403) {
+      const t = await res.text();
+      throw new Error(`X API ${res.status}: ${t.slice(0, 200)} (check your pay-per-use credits and app permissions in the developer portal)`);
+    }
     if (res.status === 404) return null;
     if (res.status === 429) throw new Error("X API rate limited");
     const body: any = await res.json();
