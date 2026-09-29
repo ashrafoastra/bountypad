@@ -91,8 +91,8 @@ export default function Launch() {
   return (
     <div className="grid lg:grid-cols-[1fr_420px] gap-10 max-w-6xl mx-auto">
       <div className="min-w-0">
-        <div className="text-green font-mono text-sm tracking-[.14em] uppercase">Launch</div>
-        <h1 className="text-4xl sm:text-5xl font-semibold tracking-[-0.035em] mt-3">Launch a coin with a challenge.</h1>
+        <div className="eyebrow !text-green">Launch</div>
+        <h1 className="text-[40px] sm:text-[60px] leading-[1] font-semibold tracking-[-0.045em] mt-4 text-balance">Launch a coin. <span className="serif-accent gold-text pr-1">Set the challenge.</span></h1>
         <p className="text-mute text-lg mt-3">The challenge is written on-chain at launch and can never change.</p>
 
         <div className="flex flex-wrap gap-2 mt-8 mb-8">
@@ -200,14 +200,16 @@ export default function Launch() {
       {/* live preview */}
       <div className="lg:sticky lg:top-24 h-fit">
         <div className="text-mute text-xs font-mono uppercase tracking-widest mb-3">Preview</div>
-        <div className="card p-6 flex flex-col gap-5">
+        <div className="card p-6 flex flex-col gap-5 relative overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/vault-lock.webp" alt="" width={120} height={120} className="bob drop absolute right-4 top-4 w-20 opacity-90 pointer-events-none" style={{ ["--r" as string]: "8deg" }} />
           <div className="flex items-center gap-3">
             <Avatar name={f.name || "Coin"} src={f.imageUrl || null} size={48} square />
             <div><div className="font-semibold text-lg">{f.name || "Your coin"}</div><div className="text-xblue font-medium">${ticker}</div></div>
           </div>
           <div>
-            <div className="text-mute text-xs font-mono uppercase tracking-widest">Bounty pot</div>
-            <div className="text-gold glow-gold text-4xl font-bold mt-1 tabular">0.000 <span className="text-2xl">SOL</span></div>
+            <div className="eyebrow">Bounty pot</div>
+            <div className="gold-text text-4xl font-bold mt-1 tabular">0.000 <span className="text-2xl">SOL</span></div>
             <div className="text-dim text-sm mt-1">Fills with every trade</div>
           </div>
           <div className="rounded-xl border border-line bg-panel p-4 flex items-center gap-3">

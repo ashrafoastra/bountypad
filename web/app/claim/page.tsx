@@ -45,8 +45,10 @@ export default function Claim() {
 
   if (!auth.x) return (
     <div className="max-w-xl mx-auto text-center flex flex-col items-center gap-6 pt-6">
-      <div className="text-green font-mono text-sm tracking-[.14em] uppercase">Claim</div>
-      <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">Someone put a bounty on your post?</h1>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/verified-badge.webp" alt="" width={140} height={140} className="bob drop w-28 h-28" />
+      <div className="eyebrow !text-green">Claim</div>
+      <h1 className="text-[40px] sm:text-[56px] leading-[1] font-semibold tracking-[-0.045em] text-balance">Someone put a bounty <span className="serif-accent gold-text pr-1">on you?</span></h1>
       <p className="text-mute text-lg">Log in with X to see every coin that names you, collect the ones you've completed, or opt out entirely. A wallet is created for you if you don't have one.</p>
       {auth.mode === "privy" ? (
         <button className="btn btn-primary h-14 px-8 text-lg" onClick={auth.loginWithX}><XIcon size={18} /> {auth.authenticated ? "Link your X account" : "Log in with X"}</button>

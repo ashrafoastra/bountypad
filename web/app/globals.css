@@ -4,10 +4,13 @@
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
 @import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
   --color-bg: #060709;
   --color-panel: #0d0f13;
   --color-panel-2: #13161b;
@@ -21,7 +24,8 @@
   --color-red: #ff6b7a;
 }
 
-html { background: var(--color-bg); color-scheme: dark; }
+html { background: var(--color-bg); color-scheme: dark; overflow-x: clip; }
+body { overflow-x: clip; }
 body {
   background: var(--color-bg);
   color: var(--color-ink);
@@ -79,3 +83,45 @@ textarea.input { height: auto; padding: 14px 16px; }
 .scan-line { animation: scan 2.4s cubic-bezier(.6,0,.4,1) infinite; }
 
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* ---- brand layer (Refero-inspired: editorial type, floating 3D objects, glass data cards) ---- */
+.serif-accent { font-family: var(--font-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
+.text-balance { text-wrap: balance; }
+
+/* soft ambient light behind the hero objects */
+.halo {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(38% 42% at 50% 48%, rgb(247 199 90 / .22), transparent 70%),
+    radial-gradient(30% 34% at 64% 60%, rgb(61 255 162 / .16), transparent 70%),
+    radial-gradient(26% 30% at 34% 36%, rgb(29 155 240 / .12), transparent 70%);
+  filter: blur(8px);
+}
+/* concentric reticle rings: the logo's crosshair, drawn big and faint */
+.reticle { position: absolute; left: 50%; top: 50%; border-radius: 9999px; border: 1px solid rgb(255 255 255 / .06); transform: translate(-50%, -50%); }
+.reticle::before, .reticle::after { content: ""; position: absolute; background: rgb(255 255 255 / .07); }
+.reticle::before { left: 50%; top: -14px; width: 1px; height: calc(100% + 28px); }
+.reticle::after { top: 50%; left: -14px; height: 1px; width: calc(100% + 28px); }
+@keyframes spin-slow { to { transform: translate(-50%, -50%) rotate(360deg) } }
+.reticle-spin { animation: spin-slow 90s linear infinite; }
+.no-cross::before, .no-cross::after { display: none; }
+
+@keyframes bob { 0%,100% { transform: translateY(0) rotate(var(--r, 0deg)) } 50% { transform: translateY(-14px) rotate(calc(var(--r, 0deg) + 3deg)) } }
+.bob { animation: bob var(--d, 6s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+.drop { filter: drop-shadow(0 30px 40px rgb(0 0 0 / .55)); }
+
+.glass {
+  background: linear-gradient(180deg, rgb(255 255 255 / .07), rgb(255 255 255 / .02));
+  border: 1px solid rgb(255 255 255 / .1);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 30px 80px rgb(0 0 0 / .5), inset 0 1px 0 rgb(255 255 255 / .08);
+}
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--color-mute); }
+.hairline { background: linear-gradient(90deg, transparent, rgb(255 255 255 / .12), transparent); height: 1px; }
+.gold-text { background: linear-gradient(180deg, #fff1c4 0%, #f7c75a 55%, #c8932c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.step-num { font-family: var(--font-mono); font-size: 12px; color: var(--color-green); border: 1px solid rgb(61 255 162 / .3); background: rgb(61 255 162 / .06); border-radius: 9999px; padding: 3px 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bob, .reticle-spin, .marquee, .scan-line { animation: none !important; }
+}

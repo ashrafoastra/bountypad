@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogoMark } from "./ui";
+import { Logo, LogoMark } from "./ui";
 import { useHealth } from "@/lib/api";
 import { Account } from "./Account";
 
@@ -17,10 +17,11 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-bg/70 border-b border-line">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
-        <Link href="/" className="flex items-center gap-2.5 font-bold text-lg tracking-tight">
-          <LogoMark /> <span className="hidden sm:inline">Bounty Pad</span>
+        <Link href="/" aria-label="Bounty Pad home" className="shrink-0">
+          <span className="hidden sm:inline"><Logo /></span>
+          <span className="sm:hidden"><LogoMark size={32} /></span>
         </Link>
-        <nav className="flex items-center gap-0.5 sm:gap-1 text-[15px] min-w-0 overflow-x-auto">
+        <nav className="flex items-center gap-0.5 sm:gap-1 text-[15px] min-w-0 overflow-x-auto sm:ml-2 sm:p-1 sm:rounded-xl sm:border sm:border-line sm:bg-white/[.02]">
           {[...LINKS, ...(health?.devTools && health?.xMode === "mock" ? [{ href: "/dev", label: "Dev" }] : [])].map((l) => {
             const on = l.href === "/" ? path === "/" : path.startsWith(l.href);
             return (

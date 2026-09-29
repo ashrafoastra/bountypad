@@ -116,7 +116,7 @@ async function reconcile(ctx: Ctx, b: any, oc: OnchainBounty): Promise<OnchainBo
     case "VOTING":
       return oc.status === OnchainStatus.FROZEN ? adminAction(ctx, b, "cancel", mint) : null;
     case "PAID":
-      if (oc.status === OnchainStatus.PAID && oc.potLamports > 0n) {
+      if (oc.status === OnchainStatus.PAID && oc.potLamports >= ctx.env.solana.minClaimLamports) {
         const sig = await chain.send(new Transaction().add(await chain.escrow.release(mint, oc.payoutWallet)));
         await emit(ctx.db, "PAYOUT_SENT", b.token_id, b.id, { amountLamports: oc.potLamports.toString(), target: b.username, ticker: b.ticker, tx: sig, sweep: true });
         return reread();
@@ -143,7 +143,8 @@ async function burnPot(ctx: Ctx, b: any, mint: PublicKey, oc: OnchainBounty): Pr
     // The escrow allows expiry only after its own (longer) grace, which covers rechecks and votes.
     if ((await chain.unixTime()) <= oc.deadline + Number(cfg.deadlineGrace)) return null;
     sig = await chain.send(new Transaction().add(await chain.escrow.expire(mint, treasury)));
-  } else if ((oc.status === OnchainStatus.EXPIRED || oc.status === OnchainStatus.OPTED_OUT) && oc.potLamports > 0n) {
+  } else if ((oc.status === OnchainStatus.EXPIRED || oc.status === OnchainStatus.OPTED_OUT) && oc.potLamports >= ctx.env.solana.minClaimLamports) {
+    // Fees that keep arriving after the end are swept in batches, not every tiny claim.
     sig = await chain.send(new Transaction().add(await chain.escrow.expire(mint, treasury))); // sweep later fees
   } else {
     return null;

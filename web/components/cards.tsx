@@ -8,7 +8,8 @@ export function TokenCard({ s, solUsd }: { s: TokenSummary; solUsd: number }) {
   const { token, bounty, target } = s;
   const pot = sol(bounty.potLamports);
   return (
-    <Link href={`/token/${token.id}`} className="card card-hover p-5 flex flex-col gap-4 group">
+    <Link href={`/token/${token.id}`} className="card card-hover p-5 flex flex-col gap-4 group relative overflow-hidden">
+      <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-gold/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="flex items-center gap-3">
         <Avatar name={token.name} src={token.imageUrl} size={44} square />
         <div className="min-w-0">
@@ -18,9 +19,9 @@ export function TokenCard({ s, solUsd }: { s: TokenSummary; solUsd: number }) {
         <div className="ml-auto"><StatusPill status={bounty.status} /></div>
       </div>
       <div>
-        <div className="text-mute text-xs font-mono uppercase tracking-widest">Bounty pot</div>
+        <div className="eyebrow !text-[11px]">Bounty pot</div>
         <div className="flex items-baseline gap-2 mt-1">
-          <Counter value={pot} format={(v) => v.toFixed(3)} className="text-gold glow-gold text-[34px] font-bold tracking-tight" />
+          <Counter value={pot} format={(v) => v.toFixed(3)} className="gold-text text-[34px] font-bold tracking-tight" />
           <span className="text-gold/80 font-semibold">SOL</span>
           <span className="text-mute text-sm ml-auto">≈ {fmtUsd(pot * solUsd)}</span>
         </div>

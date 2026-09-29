@@ -64,6 +64,9 @@ export default function TokenPage() {
         <div className="flex flex-col gap-6">
           {/* pot */}
           <div className="card p-6 sm:p-8 relative overflow-hidden">
+            <div className="halo opacity-40" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={paid ? "/brand/verified-badge.webp" : "/brand/vault-lock.webp"} alt="" width={140} height={140} className="bob drop absolute right-5 sm:right-10 bottom-5 w-20 sm:w-28 opacity-95 pointer-events-none" style={{ ["--r" as string]: "6deg" }} />
             <div className="flex items-center justify-between">
               <span className="text-mute text-xs font-mono uppercase tracking-widest">Bounty pot</span>
               {token.escrow ? (
@@ -73,7 +76,7 @@ export default function TokenPage() {
               )}
             </div>
             <div className="flex flex-wrap items-baseline gap-x-3 mt-3">
-              <Counter value={pot} format={(v) => v.toFixed(4)} className="text-gold glow-gold text-[56px] sm:text-[80px] font-bold tracking-[-0.04em] leading-none" />
+              <Counter value={pot} format={(v) => v.toFixed(4)} className="gold-text text-[56px] sm:text-[80px] font-bold tracking-[-0.04em] leading-none" />
               <span className="text-gold/80 text-2xl font-semibold">SOL</span>
               <span className="text-mute text-lg">≈ {fmtUsd(pot * solUsd)}</span>
             </div>

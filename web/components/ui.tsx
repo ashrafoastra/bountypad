@@ -4,12 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import type { BountyStatus, CheckResult } from "@bountypad/shared";
 import { STATUS } from "@/lib/format";
 
+/** The Bounty Pad mark (generated with Higgsfield / Recraft, vector): a gold coin reticle with a green check. */
 export function LogoMark({ size = 28 }: { size?: number }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/brand/logo-mark.svg" width={size} height={size} alt="" aria-hidden className="shrink-0" />;
+}
+
+/** Mark + wordmark. */
+export function Logo({ size = 30 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
-      <circle cx="20" cy="20" r="16" fill="none" stroke="#f7c75a" strokeWidth="3.4" />
-      <path d="M12.5 20.5l5 5 10-11" fill="none" stroke="#3dffa2" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <span className="flex items-center gap-2.5">
+      <LogoMark size={size} />
+      <span className="font-semibold tracking-[-0.03em] text-[19px] leading-none">Bounty<span className="serif-accent text-gold text-[22px] ml-[1px]">Pad</span></span>
+    </span>
   );
 }
 
