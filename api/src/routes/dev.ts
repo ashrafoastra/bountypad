@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Ctx } from "../app";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { SIM_WALLETS, simTrade, simVotes } from "../sim/sim";
 
 /**
@@ -45,9 +45,20 @@ export async function devRoutes(app: FastifyInstance, ctx: Ctx) {
     app.post("/api/dev/airdrop", async (req, reply) => {
       if (chain.cluster === "mainnet-beta") return reply.status(400).send({ error: "no airdrops on mainnet" });
       const b = z.object({ wallet: z.string(), sol: z.number().min(0.1).max(100).default(5) }).parse(req.body);
-      const sig = await chain.connection.requestAirdrop(new PublicKey(b.wallet), Math.round(b.sol * 1e9));
-      await chain.connection.confirmTransaction(sig, "confirmed");
-      return { ok: true, balance: Number(await chain.balance(new PublicKey(b.wallet))) / 1e9 };
+      const to = new PublicKey(b.wallet);
+      try {
+        const sig = await chain.connection.requestAirdrop(to, Math.round(b.sol * 1e9));
+        await chain.connection.confirmTransaction(sig, "confirmed");
+      } catch (e) {
+        // The public devnet faucet is often rate limited (429). Test SOL from the keeper instead,
+        // capped so the keeper always keeps enough to pay for fee claims and payouts.
+        const give = Math.min(0.5, b.sol) * 1e9, keep = 1e9;
+        const bal = Number(await chain.balance(chain.keeper.publicKey));
+        if (chain.cluster !== "devnet" && chain.cluster !== "localnet") throw e;
+        if (bal - give < keep) return reply.status(429).send({ error: "The devnet faucet is busy. Get free test SOL at faucet.solana.com (sign in with GitHub)." });
+        await chain.send(new Transaction().add(SystemProgram.transfer({ fromPubkey: chain.keeper.publicKey, toPubkey: to, lamports: Math.round(give) })));
+      }
+      return { ok: true, balance: Number(await chain.balance(to)) / 1e9 };
     });
   }
 
