@@ -51,6 +51,15 @@ function setEnv(values: Record<string, string>) {
   writeFileSync(f, lines.filter((l, i, a) => l !== "" || i < a.length - 1).join("\n") + "\n", { mode: 0o600 });
 }
 
+/** The `solana` binary: on the PATH, or where the official installer puts it (new terminals only get the PATH). */
+function solanaCli(): string | null {
+  const home = process.env.HOME || "";
+  for (const c of ["solana", path.join(home, ".local/share/solana/install/active_release/bin/solana")]) {
+    try { execFileSync(c, ["--version"], { stdio: "ignore" }); return c; } catch { /* next */ }
+  }
+  return null;
+}
+
 async function main() {
   say(`\nBounty Pad on-chain setup: ${cluster} (${rpc})\n`);
   const conn = new Connection(rpc, "confirmed");
@@ -90,10 +99,14 @@ async function main() {
     if (!existsSync(programKeyPath)) throw new Error(`Missing ${programKeyPath} (the program's address key; ask the on-chain dev for it)`);
     say("  Deploying the escrow program (takes a minute)...");
     const keeperFile = path.join(keyDir, "keeper.json");
+    const cli = solanaCli();
+    if (!cli) {
+      throw new Error("The Solana CLI isn't installed (or not on your PATH). Install it, open a NEW terminal, check `solana --version`, then run this again:\n\n    sh -c \"$(curl -sSfL https://release.anza.xyz/stable/install)\"");
+    }
     try {
-      execFileSync("solana", ["program", "deploy", soPath, "--program-id", programKeyPath, "--keypair", keeperFile, "--url", rpc, "--commitment", "confirmed"], { stdio: "inherit" });
+      execFileSync(cli, ["program", "deploy", soPath, "--program-id", programKeyPath, "--keypair", keeperFile, "--url", rpc, "--commitment", "confirmed"], { stdio: "inherit" });
     } catch (e) {
-      throw new Error("Deploy failed. Is the Solana CLI installed? Install: sh -c \"$(curl -sSfL https://release.anza.xyz/stable/install)\"");
+      throw new Error(`Deploy failed (${(e as Error).message.split("\n")[0]}). The Solana CLI output above says why. Common fixes: wait a minute and run this again (devnet is busy), or top up the keeper if it ran out of SOL.`);
     }
   }
   ok(`escrow program ${ESCROW_PROGRAM_ID.toBase58()}`);
