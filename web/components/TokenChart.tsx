@@ -16,7 +16,10 @@ const C = { bg: "#101010", grid: "#1d1d1b", text: "#a7a79f", line: "#3a3a36", up
  * The coin's market chart (TradingView lightweight-charts): candles + volume from every trade
  * and pool sample, market-cap view, and the pot locked in escrow over time.
  */
-export function TokenChart({ tokenId, ticker }: { tokenId: string; ticker: string }) {
+/** Market cap like trading terminals: $3.94K, $1.20M. */
+const usdCompact = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(2)}K` : `$${v.toFixed(0)}`;
+
+export function TokenChart({ tokenId, ticker, solUsd }: { tokenId: string; ticker: string; solUsd: number }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const series = useRef<{ candles?: ISeriesApi<"Candlestick">; volume?: ISeriesApi<"Histogram">; pot?: ISeriesApi<"Area"> }>({});
@@ -72,8 +75,9 @@ export function TokenChart({ tokenId, ticker }: { tokenId: string; ticker: strin
         priceFormat: { type: "custom", formatter: (p: number) => fmtPrice(p), minMove: 1e-12 },
         priceLineColor: C.ink, priceLineStyle: LineStyle.Dotted,
       });
-      s.volume = c.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
-      c.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      // Volume on its own overlay scale at the bottom, never mixed into the price scale.
+      s.volume = c.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
+      s.volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     }
     if (!wantCandles && !s.pot) {
       if (s.candles) { c.removeSeries(s.candles); s.candles = undefined; }
@@ -83,17 +87,25 @@ export function TokenChart({ tokenId, ticker }: { tokenId: string; ticker: strin
         priceFormat: { type: "custom", formatter: (p: number) => `${p.toFixed(4)} SOL`, minMove: 1e-9 },
       });
     }
-    const k = mode === "mcap" ? SUPPLY : 1;
+    // MCap view in dollars (price × supply × SOL price), like Axiom.
+    const k = mode === "mcap" ? SUPPLY * solUsd : 1;
     if (s.candles) {
-      s.candles.applyOptions({ priceFormat: mode === "mcap" ? { type: "custom", formatter: (p: number) => `${p.toFixed(p >= 100 ? 0 : 2)} SOL`, minMove: 0.01 } : { type: "custom", formatter: (p: number) => fmtPrice(p), minMove: 1e-12 } });
-      s.candles.setData(data.candles.map((x) => ({ time: x.time as UTCTimestamp, open: x.open * k, high: x.high * k, low: x.low * k, close: x.close * k })));
+      const rows = data.candles.map((x) => ({ time: x.time as UTCTimestamp, open: x.open * k, high: x.high * k, low: x.low * k, close: x.close * k }));
+      const lo = Math.min(...rows.map((r) => r.low)), hi = Math.max(...rows.map((r) => r.high));
+      const pad = (hi - lo) * 0.15 || hi * 0.05;
+      s.candles.applyOptions({
+        priceFormat: mode === "mcap" ? { type: "custom", formatter: usdCompact, minMove: 0.01 } : { type: "custom", formatter: (p: number) => fmtPrice(p), minMove: 1e-12 },
+        // The scale follows the candles only (a flat line or one candle otherwise gets an absurd range).
+        autoscaleInfoProvider: () => rows.length ? { priceRange: { minValue: Math.max(0, lo - pad), maxValue: hi + pad } } : null,
+      });
+      s.candles.setData(rows);
       s.volume!.setData(data.candles.map((x) => ({ time: x.time as UTCTimestamp, value: x.volume, color: x.close >= x.open ? "rgba(95,207,143,0.35)" : "rgba(240,103,106,0.35)" })));
     }
     if (s.pot) {
       const pts = data.pot.length ? data.pot : [];
       s.pot.setData(pts.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
     }
-    c.applyOptions({ localization: { priceFormatter: mode === "price" ? (p: number) => fmtPrice(p) : (p: number) => p.toFixed(mode === "pot" ? 4 : 2) } });
+    c.applyOptions({ localization: { priceFormatter: mode === "price" ? (p: number) => fmtPrice(p) : mode === "mcap" ? usdCompact : (p: number) => p.toFixed(4) } });
     const key = `${mode}:${tf}`;
     if (fitted.current !== key) {
       // Few candles: keep them readable (room for ~36) instead of stretching them across the chart.
@@ -102,12 +114,12 @@ export function TokenChart({ tokenId, ticker }: { tokenId: string; ticker: strin
       else c.timeScale().fitContent();
       fitted.current = key;
     }
-  }, [data, mode, tf]);
+  }, [data, mode, tf, solUsd]);
 
   const last = data?.candles[data.candles.length - 1];
   const shown = hover ?? (last ? { o: last.open, h: last.high, l: last.low, c: last.close, v: last.volume } : null);
   const empty = data && (mode === "pot" ? data.pot.length === 0 : data.candles.length === 0);
-  const fmt = (v: number) => mode === "mcap" ? `${(v * SUPPLY).toFixed(2)}` : fmtPrice(v);
+  const fmt = (v: number) => mode === "mcap" ? usdCompact(v * SUPPLY * solUsd) : fmtPrice(v);
 
   return (
     <div className="flex flex-col">
@@ -130,7 +142,7 @@ export function TokenChart({ tokenId, ticker }: { tokenId: string; ticker: strin
           <span>Pot, SOL{data?.pot.length ? <> · <span className="text-ink">{data.pot[data.pot.length - 1].value.toFixed(4)}</span></> : null}</span>
         ) : shown ? (
           <>
-            <span>${ticker}/SOL{mode === "mcap" ? " · MCap" : ""}</span>
+            <span>{mode === "mcap" ? `$${ticker} · MCap USD` : `$${ticker}/SOL`}</span>
             <span>O <span className={shown.c >= shown.o ? "text-green" : "text-red"}>{fmt(shown.o)}</span></span>
             <span>H <span className={shown.c >= shown.o ? "text-green" : "text-red"}>{fmt(shown.h)}</span></span>
             <span>L <span className={shown.c >= shown.o ? "text-green" : "text-red"}>{fmt(shown.l)}</span></span>

@@ -73,7 +73,7 @@ export default function TokenPage() {
           <div className="grid grid-cols-3 md:grid-cols-6 flex-1 border-t xl:border-t-0 border-line">
             <HStat label="Price" v={<>{fmtPrice(market.priceSol)}</>} sub="SOL" />
             <HStat label="24h" v={<Change pct={market.change24h} />} />
-            <HStat label="Market cap" v={market.marketCapSol === null ? "—" : fmtCompact(market.marketCapSol)} sub={market.marketCapSol === null ? undefined : `SOL · ${fmtUsd(market.marketCapSol * solUsd)}`} />
+            <HStat label="Market cap" v={market.marketCapSol === null ? "—" : fmtUsd(market.marketCapSol * solUsd)} sub={market.marketCapSol === null ? undefined : `${fmtCompact(market.marketCapSol)} SOL`} />
             <HStat label="Vol 24h" v={fmtCompact(sol(market.volume24hLamports))} sub="SOL" />
             <HStat label="Holders" v={d.holders} />
             <HStat label="Curve" v={market.curveProgress === null ? "—" : `${(market.curveProgress * 100).toFixed(1)}%`} bar={market.curveProgress ?? 0} />
@@ -83,7 +83,7 @@ export default function TokenPage() {
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
         {/* ---------- chart ---------- */}
-        <section className="frame min-w-0"><Crosses /><TokenChart tokenId={token.id} ticker={token.ticker} /></section>
+        <section className="frame min-w-0"><Crosses /><TokenChart tokenId={token.id} ticker={token.ticker} solUsd={solUsd} /></section>
 
         {/* ---------- side: challenge, pot, trade (second on phones, right column on desktop) ---------- */}
         <aside className="flex flex-col gap-6 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-24">

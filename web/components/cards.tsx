@@ -75,7 +75,7 @@ export function TokenRow({ s, rank, solUsd }: { s: TokenSummary; rank: number; s
       </div>
       <span className="hidden md:block num text-sm text-right">{fmtPrice(market.priceSol)}</span>
       <Change pct={market.change24h} className="hidden md:block text-sm text-right" />
-      <span className="hidden md:block num text-sm text-right text-mute">{market.marketCapSol === null ? "—" : fmtCompact(market.marketCapSol)}</span>
+      <span className="hidden md:block num text-sm text-right text-mute">{market.marketCapSol === null ? "—" : fmtUsd(market.marketCapSol * solUsd)}</span>
       <div className="text-right">
         <div className="num text-sm">{pot.toFixed(3)} <span className="text-mute">SOL</span></div>
         <div className="num text-[11px] text-dim md:hidden">{fmtUsd(pot * solUsd)} · <Change pct={market.change24h} /></div>

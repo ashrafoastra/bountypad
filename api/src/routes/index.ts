@@ -110,7 +110,9 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     const t = (await db.query(`select id from tokens where id=$1 or mint=$1`, [(req.params as any).id]))[0];
     if (!t) return reply.status(404).send({ error: "not found" });
     const potRows = ctx.chain?.escrowMode === "pool"
-      ? await db.query(`select extract(epoch from at)::bigint as ts, pot_lamports::text as pot from pot_ticks where token_id=$1 order by at`, [t.id])
+      ? await db.query(`select extract(epoch from at)::bigint as ts, pot_lamports::text as pot from pot_ticks where token_id=$1
+                        union all select extract(epoch from at)::bigint, (sum(pot_lamports) over (order by at))::text from fee_claims
+                         where token_id=$1 and not exists (select 1 from pot_ticks where token_id=$1) order by 1`, [t.id])
       : ctx.chain
       ? await db.query(`select extract(epoch from at)::bigint as ts, (sum(pot_lamports) over (order by at))::text as pot from fee_claims where token_id=$1 order by at`, [t.id])
       : await db.query(`select extract(epoch from created_at)::bigint as ts, (sum(pot_lamports) over (order by created_at, id))::text as pot from trades where token_id=$1 order by created_at, id`, [t.id]);

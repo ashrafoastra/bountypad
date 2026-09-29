@@ -9,7 +9,7 @@ export function fmtSol(lamports: string | bigint | number, digits = 2) {
 
 export function fmtUsd(v: number) {
   if (v >= 1_000_000) return "$" + (v / 1_000_000).toFixed(2) + "M";
-  if (v >= 10_000) return "$" + (v / 1000).toFixed(1) + "K";
+  if (v >= 1_000) return "$" + (v / 1000).toFixed(2) + "K"; // like trading terminals: $3.94K
   return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
