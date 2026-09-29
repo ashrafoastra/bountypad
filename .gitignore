@@ -12,3 +12,5 @@ programs/test-ledger
 .devnet
 api/.chain
 programs/.fixtures
+.DS_Store
+.sync/
