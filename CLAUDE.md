@@ -178,7 +178,7 @@ The blockchain can't read X, so the backend acts as a signed witness:
 
 **Where the money goes (two paths, depends on Test A in Section 9):**
 - **Path 1 (preferred, fully automatic):** Privy **pregenerates a Solana wallet tied to the target's X account** server-side. Funds are sent there at release. Whenever the person logs in with X, the wallet and money are already there.
-- **Path 2 (fallback):** funds stay in an on-chain vault keyed to the target's X user ID. The bot replies to the verified post ("Bounty completed, $X unlocked, claim at ..."). The person logs in once with X (Privy), a wallet is created, and the vault releases to it. After the first claim, that wallet is linked to their X ID and all future bounties pay instantly.
+- **Path 2 (fallback):** funds stay in an on-chain vault keyed to the target's X user ID. The bot replies to the verified post ("Bounty completed, $X unlocked, claim at ..."). The person logs in once with X (**our own X app, OAuth 2.0 + PKCE; decided 2026-09-29, not Privy**), picks or connects a wallet, and the vault releases to it. After the first claim, that wallet is linked to their X ID and all future bounties pay instantly.
 - **Opt-out:** a verified X account can refuse all bounties. Their future pots are burned, and their tokens are flagged.
 
 ### 6.7 Public receipts (marketing)

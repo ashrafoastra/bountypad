@@ -9,6 +9,7 @@ import { isSolanaAddress } from "../core/solana";
 import { ACTION_CODE } from "../chain/escrow";
 import { emit } from "./events";
 import { recordLaunchPrice } from "./market";
+import { launchText, platformConnected, postAsPlatform } from "./xposter";
 
 export class LaunchError extends Error { constructor(msg: string, public status = 400) { super(msg); } }
 
@@ -57,8 +58,8 @@ async function validate(ctx: Ctx, input: unknown) {
   const ticker = normalizeTicker(req.ticker);
   if (req.action === "VIDEO_PHRASE" && !(req.phrase && req.phrase.split(/\s+/).length >= 2))
     throw new LaunchError("Video bounties need a short phrase of at least 2 words");
-  if (req.action === "QUOTE_LAUNCH" && !ctx.mockX)
-    throw new LaunchError("Quote bounties aren't available yet (launch post publishing not wired)");
+  if (req.action === "QUOTE_LAUNCH" && !(await platformConnected(ctx)))
+    throw new LaunchError("Quote challenges need the platform's X account connected (it publishes the launch post to quote). Pick another challenge.");
 
   const target = await resolveTarget(ctx, req.targetHandle);
   if (!target.ok) throw new LaunchError(target.reason);
@@ -80,11 +81,14 @@ async function validate(ctx: Ctx, input: unknown) {
   return { req, ticker, target: target.profile, days };
 }
 
-/** The coin's official launch post (needed for QUOTE_LAUNCH). Only the simulated X can post it for now. */
-function launchPost(ctx: Ctx, ticker: string, username: string) {
-  return ctx.mockX
-    ? ctx.mockX.createPost({ username: "bountypad", text: `$${ticker} just launched on Bounty Pad. Challenge for @${username} is live.` }).id
-    : null;
+/**
+ * The coin's launch post by the platform account (the post a QUOTE_LAUNCH target quotes).
+ * Published when the platform X account is connected; if X fails now, a job retries it.
+ */
+async function launchPost(ctx: Ctx, t: { id: string; ticker: string; action: string; phrase: string | null }) {
+  if (!(await platformConnected(ctx))) return null;
+  try { return await postAsPlatform(ctx, launchText(ctx, t)); }
+  catch (e) { console.log(new Date().toISOString(), "[launch] launch post failed, will retry:", (e as Error).message); return null; }
 }
 
 interface LaunchRecord {
@@ -96,7 +100,7 @@ interface LaunchRecord {
 /** Token + bounty rows, written together (a coin without its bounty can never exist). */
 async function record(ctx: Ctx, r: LaunchRecord) {
   const tokenId = randomUUID(), bountyId = randomUUID();
-  const launchPostId = launchPost(ctx, r.ticker, r.targetUsername);
+  const launchPostId = await launchPost(ctx, { id: tokenId, ticker: r.ticker, action: r.action, phrase: r.phrase });
   await ctx.db.tx(async (q) => {
     await q.query(
       `insert into tokens (id, mint, name, ticker, image_url, description, creator_wallet, launch_post_id, pool, launch_tx) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -180,7 +184,11 @@ export async function submitLaunch(ctx: Ctx, launchId: string, signedBase64: str
   try {
     sig = await ctx.chain.sendSigned(bytes);
   } catch (e) {
-    const msg = (e as Error).message;
+    // Simulation errors carry the program logs: keep them in the API log, and show the telling line.
+    const logs: string[] = (e as any).logs ?? (e as any).transactionLogs ?? [];
+    if (logs.length) console.log(new Date().toISOString(), "[launch] failed tx logs:\n  " + logs.join("\n  "));
+    const why = [...logs].reverse().find((l) => /Error|failed|insufficient/i.test(l));
+    const msg = (e as Error).message.split("\n")[0] + (why ? ` (${why.replace(/^Program log: /, "")})` : "");
     // It may still have landed (e.g. a timeout). The reconciler records it if so.
     throw new LaunchError(`Launch transaction failed: ${msg.slice(0, 300)}`, 502);
   }

@@ -55,7 +55,7 @@ describe("search queries", () => {
   const base = { username: "novareyes", ticker: "ROCKET", mint: "MINT", launchPostId: "900" };
   it("builds one query per action", () => {
     expect(buildSearchQuery({ ...base, action: "TWEET_CASHTAG" })).toBe("from:novareyes $ROCKET -is:retweet");
-    expect(buildSearchQuery({ ...base, action: "TWEET_CONTRACT" })).toBe('from:novareyes "MINT" -is:retweet');
+    expect(buildSearchQuery({ ...base, action: "TWEET_CONTRACT" })).toBe('from:novareyes ("MINT" OR url:"MINT") -is:retweet');
     expect(buildSearchQuery({ ...base, action: "QUOTE_LAUNCH" })).toBe("quotes_of_tweet_id:900 from:novareyes");
     expect(buildSearchQuery({ ...base, action: "VIDEO_PHRASE" })).toBeNull();
     expect(buildSearchQuery({ ...base, launchPostId: null, action: "QUOTE_LAUNCH" })).toBeNull();

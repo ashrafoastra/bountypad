@@ -11,7 +11,11 @@
     "test:privy": "tsx scripts/test-privy.ts",
     "chain:setup": "tsx scripts/chain-setup.ts",
     "test:chain": "SOLANA_TEST_RPC=${SOLANA_TEST_RPC:-http://127.0.0.1:8899} vitest run test/chain.test.ts",
-    "x:check": "tsx scripts/x-check.ts"
+    "x:check": "tsx scripts/x-check.ts",
+    "x:verify": "tsx scripts/x-verify.ts",
+    "x:connect-platform": "tsx scripts/x-connect-platform.ts",
+    "admin": "tsx scripts/admin.ts",
+    "db:reset": "tsx scripts/db-reset.ts"
   },
   "dependencies": {
     "@bountypad/shared": "*",

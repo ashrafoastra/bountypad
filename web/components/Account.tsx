@@ -44,9 +44,10 @@ export function Account() {
             <div className="px-3 py-3 border-b border-line">
               <div className="label mb-2">X account</div>
               {a.x ? (
-                <div className="flex items-center gap-2 text-sm"><XIcon size={13} />@{a.x.username}<Verified size={13} /></div>
+                <div className="flex items-center gap-2 text-sm"><XIcon size={13} />@{a.x.username}{a.x.verified && <Verified size={13} />}
+                  <button className="ml-auto text-xs text-mute hover:text-ink" onClick={() => { setOpen(false); a.logoutX(); }}>Log out of X</button></div>
               ) : (
-                <button className="text-sm font-semibold text-xblue" onClick={() => { setOpen(false); a.loginWithX(); }}>Link your X account</button>
+                <button className="text-sm text-xblue" onClick={() => { setOpen(false); a.loginWithX(); }}>Log in with X</button>
               )}
             </div>
             <div className="flex flex-col p-1">

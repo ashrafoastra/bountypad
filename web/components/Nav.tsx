@@ -85,7 +85,7 @@ export function Nav() {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-3 shrink-0 pl-1">
-          {health?.sim && <span className="hidden lg:inline-flex items-center gap-2 h-7 px-2.5 border border-gold/30 text-gold font-mono uppercase tracking-[.06em] text-[10.5px]"><span className="w-1.5 h-1.5 bg-gold" />Simulation</span>}
+          {health?.chain === "sim" && <span className="hidden lg:inline-flex items-center gap-2 h-7 px-2.5 border border-gold/30 text-gold font-mono uppercase tracking-[.06em] text-[10.5px]"><span className="w-1.5 h-1.5 bg-gold" />{health.xMode === "real" ? "Real X · simulated chain" : "Simulation"}</span>}
           {health?.chain === "solana" && health.cluster !== "mainnet-beta" && (
             <span className="hidden lg:inline-flex items-center gap-2 h-7 px-2.5 border border-line-2 text-mute font-mono uppercase tracking-[.06em] text-[10.5px]" title={health.xMode === "mock" ? "Real Solana, simulated X" : "Real Solana and X"}>
               <span className="w-1.5 h-1.5 bg-green live-dot" />Solana {health.cluster}{health.xMode === "mock" ? " · test X" : ""}

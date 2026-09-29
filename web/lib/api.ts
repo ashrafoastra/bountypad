@@ -14,6 +14,8 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     headers,
     body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body,
     cache: "no-store",
+    // Sends the "Log in with X" session cookie (httpOnly, set by the API).
+    credentials: "include",
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError((body as any).error ?? `Request failed (${res.status})`);

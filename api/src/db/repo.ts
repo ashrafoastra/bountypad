@@ -9,7 +9,7 @@ export const mapProfile = (r: any): Profile => ({
 });
 export const mapToken = (r: any): Token => ({
   id: r.id, mint: r.mint, name: r.name, ticker: r.ticker, imageUrl: r.image_url, description: r.description,
-  creatorWallet: r.creator_wallet, launchPostId: r.launch_post_id, pool: r.pool ?? null, launchTx: r.launch_tx ?? null, escrow: r.pool ? EscrowClient.bountyPda(new PublicKey(r.mint)).toBase58() : null, createdAt: iso(r.created_at),
+  creatorWallet: r.creator_wallet, launchPostId: r.launch_post_id, pool: r.pool ?? null, launchTx: r.launch_tx ?? null, escrow: r.pool ? EscrowClient.bountyPda(new PublicKey(r.mint)).toBase58() : null, featured: !!r.featured, createdAt: iso(r.created_at),
 });
 export const mapBounty = (r: any): Bounty => ({
   id: r.id, tokenId: r.token_id, targetXUserId: r.target_x_user_id, action: r.action, phrase: r.phrase,
@@ -39,6 +39,9 @@ export const mapEvent = (r: any): FeedEvent => ({
 });
 
 export async function upsertProfile(db: Db, p: { id: string; username: string; name: string; avatarUrl: string | null; verified: boolean }) {
+  // Handles move between accounts (renamed / sold). The ID is the identity: free the handle from
+  // whichever older profile still carries it, so the unique index never blocks the real owner.
+  await db.query(`update profiles set username = username || '~' || x_user_id where lower(username)=lower($2) and x_user_id<>$1`, [p.id, p.username]);
   await db.query(
     `insert into profiles (x_user_id, username, name, avatar_url, verified) values ($1,$2,$3,$4,$5)
      on conflict (x_user_id) do update set username=$2, name=$3, avatar_url=$4, verified=$5, updated_at=now()`,

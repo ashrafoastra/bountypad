@@ -14,13 +14,15 @@ import { addSignature, cancelFrozen, freeze, linkWallet, optOut, unfreeze } from
 import { isSolanaAddress } from "../core/solana";
 import { bus } from "../services/events";
 import { identify } from "../auth";
+import { platformConnected } from "../services/xposter";
 
 const SUMMARY_SQL = `
   select row_to_json(t) as t, row_to_json(b) as b, row_to_json(p) as p,
          (select count(*) from holders h where h.token_id=t.id and h.balance > 0)::int as holders,
          coalesce((select sum(sol_lamports) from trades tr where tr.token_id=t.id), 0)::text as volume,
          ${MARKET_SQL}
-    from tokens t join bounties b on b.token_id=t.id join profiles p on p.x_user_id=b.target_x_user_id`;
+    from tokens t join bounties b on b.token_id=t.id join profiles p on p.x_user_id=b.target_x_user_id
+   where not t.hidden`;
 
 export async function routes(app: FastifyInstance, ctx: Ctx) {
   const { db } = ctx;
@@ -40,6 +42,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     ok: true, sim: ctx.env.sim, xMode: ctx.env.xMode, chain: ctx.env.chain,
     cluster: ctx.chain?.cluster ?? null, escrowProgram: ctx.chain ? ESCROW_PROGRAM_ID.toBase58() : null,
     dbcConfig: ctx.chain ? ctx.env.solana.dbcConfig : null, devTools: ctx.env.devTools, solUsd: ctx.env.solUsd, privy: !!ctx.privy,
+    xLogin: !!ctx.xOAuth, platformX: await platformConnected(ctx),
     feeSchedule: ctx.chain ? { startingFeeBps: LAUNCHPAD.startingFeeBps, endingFeeBps: LAUNCHPAD.endingFeeBps, decaySeconds: LAUNCHPAD.feeDecaySeconds } : null,
   }));
 
@@ -54,13 +57,24 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
   });
 
   app.get("/api/tokens", async (req): Promise<TokenSummary[]> => {
-    const sort = (req.query as any).sort === "new" ? "t.created_at desc" : "b.pot_lamports desc";
-    return (await db.query(`${SUMMARY_SQL} order by ${sort} limit 60`)).map(toSummary);
+    // Real activity only. "trending" = most SOL traded in the last 24h (then pot): a coin that gets
+    // hyped rises to the top by itself. Featured (the platform's own coin) is returned separately.
+    const q = req.query as { sort?: string; featured?: string };
+    if (q.featured) return (await db.query(`${SUMMARY_SQL} and t.featured order by t.created_at`)).map(toSummary);
+    const sort = q.sort === "new" ? "t.created_at desc"
+      : q.sort === "pot" ? "b.pot_lamports desc, t.created_at desc"
+      : "vol24 desc, b.pot_lamports desc, t.created_at desc";
+    const rows = await db.query(
+      `select * from (${SUMMARY_SQL} and not t.featured) s,
+         lateral (select coalesce(sum(sol_lamports),0) as vol24 from trades tr where tr.token_id=(s.t->>'id') and tr.created_at > now() - interval '24 hours') v
+       order by ${sort.replace(/\bt\.created_at/g, "(s.t->>'created_at')::timestamptz").replace("b.pot_lamports", "(s.b->>'pot_lamports')::numeric")} limit 60`,
+    );
+    return rows.map(toSummary);
   });
 
   app.get("/api/tokens/:id", async (req, reply) => {
     const id = (req.params as any).id;
-    const r = (await db.query(`${SUMMARY_SQL} where t.id=$1 or t.mint=$1`, [id]))[0];
+    const r = (await db.query(`${SUMMARY_SQL} and (t.id=$1 or t.mint=$1)`, [id]))[0];
     if (!r) return reply.status(404).send({ error: "not found" });
     const s = toSummary(r);
     const [dets, trades, round, payout, hist] = await Promise.all([
@@ -111,7 +125,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
   app.get("/api/profiles/:handle", async (req, reply): Promise<ProfileDetail | void> => {
     const p = (await db.query(`select * from profiles where lower(username)=lower($1)`, [(req.params as any).handle]))[0];
     if (!p) return reply.status(404).send({ error: "not found" });
-    const rows = (await db.query(`${SUMMARY_SQL} where b.target_x_user_id=$1 order by b.pot_lamports desc`, [p.x_user_id])).map(toSummary);
+    const rows = (await db.query(`${SUMMARY_SQL} and b.target_x_user_id=$1 order by b.pot_lamports desc`, [p.x_user_id])).map(toSummary);
     const sum = (f: (s: TokenSummary) => boolean) => rows.filter(f).reduce((a, s) => a + BigInt(s.bounty.potLamports), 0n).toString();
     return {
       profile: mapProfile(p),
@@ -145,7 +159,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     const r = (await db.query(`select * from vote_rounds where id=$1`, [(req.params as any).roundId]))[0];
     if (!r) return reply.status(404).send({ error: "not found" });
     const d = (await db.query(`select * from detections where id=$1`, [r.detection_id]))[0];
-    const s = toSummary((await db.query(`${SUMMARY_SQL} where b.id=$1`, [r.bounty_id]))[0]);
+    const s = toSummary((await db.query(`${SUMMARY_SQL} and b.id=$1`, [r.bounty_id]))[0]);
     // Optional ?wallet= tells the voter up front whether they can vote and what they chose.
     const w = (req.query as any).wallet as string | undefined;
     let me = null;
@@ -192,7 +206,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     const xid = me.xUserId;
     const p = (await db.query(`select * from profiles where x_user_id=$1`, [xid]))[0];
     if (!p) return { profile: null, bounties: [] };
-    const rows = (await db.query(`${SUMMARY_SQL} where b.target_x_user_id=$1 order by b.pot_lamports desc`, [xid])).map(toSummary);
+    const rows = (await db.query(`${SUMMARY_SQL} and b.target_x_user_id=$1 order by b.pot_lamports desc`, [xid])).map(toSummary);
     const payouts = (await db.query(`select p.* from payouts p join bounties b on b.id=p.bounty_id where b.target_x_user_id=$1`, [xid])).map(mapPayout);
     return { profile: mapProfile(p), bounties: rows, payouts };
   });
@@ -226,6 +240,18 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
       if (!ctx.env.adminKey || req.headers["x-admin-key"] !== ctx.env.adminKey) return reply.status(401).send({ error: "admin only" });
       await fn(ctx, (req.params as any).id);
       return { ok: true };
+    });
+  }
+
+  // Listing moderation: feature the platform's own coin; hide test or abusive coins from every list.
+  for (const [action, sql] of [
+    ["feature", "featured=true"], ["unfeature", "featured=false"], ["hide", "hidden=true"], ["unhide", "hidden=false"],
+  ] as const) {
+    app.post(`/api/admin/tokens/:id/${action}`, async (req, reply) => {
+      if (!ctx.env.adminKey || req.headers["x-admin-key"] !== ctx.env.adminKey) return reply.status(401).send({ error: "admin only" });
+      const r = await db.query(`update tokens set ${sql} where id=$1 or mint=$1 or upper(ticker)=upper($1) returning id, ticker, featured, hidden`, [(req.params as any).id]);
+      if (!r.length) return reply.status(404).send({ error: "coin not found" });
+      return r;
     });
   }
 

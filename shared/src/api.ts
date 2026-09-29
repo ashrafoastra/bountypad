@@ -76,6 +76,10 @@ export interface Health {
   devTools: boolean;
   solUsd: number;
   privy: boolean;
+  /** "Log in with X" through our own X app (OAuth 2.0) is configured. */
+  xLogin: boolean;
+  /** The platform's X account is connected (launch posts, receipts; enables "quote the launch post"). */
+  platformX: boolean;
   /** CHAIN=solana: the launchpad's anti-sniper fee schedule (fee starts high, decays to the base fee). */
   feeSchedule: { startingFeeBps: number; endingFeeBps: number; decaySeconds: number } | null;
 }
@@ -115,6 +119,10 @@ export interface ApiRoutes {
   "GET /api/tokens/:id/chart": { query: { tf?: ChartTimeframe }; res: TokenChart };
   "POST /api/tokens": { body: LaunchRequest; res: { id: string } };
   "GET /api/health": { res: Health };
+  "GET /api/auth/x/login": { query: { return?: string }; res: "302 to X" };
+  "POST /api/auth/x/complete": { body: { code: string }; res: { x: Profile; returnTo: string } };
+  "GET /api/auth/session": { res: { x: Profile | null } };
+  "POST /api/auth/logout": { res: { ok: true } };
   "POST /api/launch/prepare": { body: LaunchRequest; res: PreparedLaunch };
   "POST /api/launch/submit": { body: { launchId: string; signedTransaction: string }; res: { id: string; bountyId: string; tx: string; explorer: string } };
   "GET /api/meta/:mint": { res: { name: string; symbol: string; description: string; image?: string } };

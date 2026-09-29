@@ -6,12 +6,14 @@ import bs58 from "bs58";
 import { API } from "./api";
 
 /**
- * One auth interface for the whole app.
- *  - PRIVY mode (NEXT_PUBLIC_PRIVY_APP_ID set): connect a Solana wallet (Phantom, Solflare, …),
- *    email with an auto-created wallet, or log in with X. The API verifies Privy's token.
- *  - DEV mode (no app id, API in SIM): pick a simulated wallet / X account. No real keys.
+ * One auth interface for the whole app. Two separate things:
+ *  - WALLET: Privy (NEXT_PUBLIC_PRIVY_APP_ID set): Phantom, Solflare, … or email with an auto-created
+ *    wallet. DEV mode (no app id, API in SIM): a simulated wallet.
+ *  - X ACCOUNT: "Log in with X" through OUR X app (OAuth 2.0 + PKCE, handled by the API). X itself
+ *    confirms the account; the API keeps an httpOnly session cookie. Privy is not in that path.
+ *    SIM without an X app: pick a simulated X account.
  */
-export interface XAccount { id: string; username: string; name: string; avatarUrl: string | null }
+export interface XAccount { id: string; username: string; name: string; avatarUrl: string | null; verified?: boolean }
 
 export interface Auth {
   mode: "privy" | "dev";
@@ -19,12 +21,15 @@ export interface Auth {
   authenticated: boolean;
   /** Active Solana wallet address. */
   wallet: string | null;
-  /** Linked X account (Privy) or the simulated X account (dev). */
+  /** The X account proven by "Log in with X" (or the simulated X account in dev). */
   x: XAccount | null;
   /** Open the connect modal (wallet / email / X). */
   login: () => void;
-  /** Log in with X, or link X to the current account. */
+  /** Log in with X (redirects to X, comes back to this page). */
   loginWithX: () => void;
+  /** Log out of X only (the wallet stays connected). */
+  logoutX: () => Promise<void>;
+  /** Log out of everything. */
   logout: () => Promise<void>;
   /** Sign a UTF-8 message with the active wallet; returns a base58 ed25519 signature. */
   signMessage: (text: string) => Promise<string>;
@@ -43,6 +48,36 @@ const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCode
 const bytesToB64 = (bytes: Uint8Array) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
 
+/** The "Log in with X" session, read from the API (the cookie is httpOnly). */
+function useXSession() {
+  const [x, setX] = useState<XAccount | null>(null);
+  const [ready, setReady] = useState(false);
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch(API + "/api/auth/session", { credentials: "include", cache: "no-store" });
+      const b = await r.json();
+      setX(b.x ? { id: b.x.xUserId, username: b.x.username, name: b.x.name, avatarUrl: b.x.avatarUrl, verified: !!b.x.verified } : null);
+    } catch { setX(null); }
+    setReady(true);
+  }, []);
+  useEffect(() => {
+    refresh();
+    window.addEventListener("bp-x-session", refresh);
+    return () => window.removeEventListener("bp-x-session", refresh);
+  }, [refresh]);
+  const loginWithX = useCallback(() => {
+    const back = location.pathname + location.search;
+    location.href = `${API}/api/auth/x/login?return=${encodeURIComponent(back)}`;
+  }, []);
+  const logoutX = useCallback(async () => {
+    await fetch(API + "/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    setX(null);
+  }, []);
+  return { x, ready, loginWithX, logoutX };
+}
+/** Tell every mounted auth provider the X session changed (after /auth/x completes the login). */
+export const announceXSession = () => window.dispatchEvent(new Event("bp-x-session"));
+
 export function useAuth(): Auth {
   const a = useContext(Ctx);
   if (!a) throw new Error("useAuth outside <Providers>");
@@ -55,10 +90,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={PRIVY_APP_ID}
       config={{
-        loginMethods: ["wallet", "twitter", "email"],
+        // X login is NOT done by Privy: it goes through our own X app (see useXSession).
+        loginMethods: ["wallet", "email"],
         appearance: {
-          theme: "light",
-          accentColor: "#121212",
+          theme: "dark",
+          accentColor: "#f2f1ee",
           walletChainType: "solana-only",
           showWalletLoginFirst: true,
           landingHeader: "Connect to Bounty Pad",
@@ -73,22 +109,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 
 function PrivyAuth({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, user, login, logout, getAccessToken, linkTwitter } = usePrivy();
+  const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
+  const xs = useXSession();
   const { wallets } = useWallets();
   const { signMessage } = useSignMessage();
   const { signTransaction } = useSignTransaction();
   const wallet = wallets[0] ?? null;
-  const tw = user?.twitter;
 
   const value = useMemo<Auth>(() => ({
     mode: "privy",
-    ready,
-    authenticated,
+    ready: ready && xs.ready,
+    authenticated: authenticated || !!xs.x,
     wallet: wallet?.address ?? null,
-    x: tw ? { id: tw.subject, username: tw.username ?? "", name: tw.name ?? tw.username ?? "", avatarUrl: tw.profilePictureUrl?.replace("_normal", "") ?? null } : null,
+    x: xs.x,
     login: () => login(),
-    loginWithX: () => (authenticated ? linkTwitter() : login({ loginMethods: ["twitter"] })),
-    logout,
+    loginWithX: xs.loginWithX,
+    logoutX: xs.logoutX,
+    logout: async () => { await xs.logoutX(); await logout(); },
     signMessage: async (text) => {
       if (!wallet) throw new Error("Connect a wallet first");
       const { signature } = await signMessage({ message: new TextEncoder().encode(text), wallet });
@@ -105,13 +142,14 @@ function PrivyAuth({ children }: { children: React.ReactNode }) {
       if (t) h.Authorization = `Bearer ${t}`;
       return h;
     },
-  }), [ready, authenticated, wallet, tw, login, logout, linkTwitter, signMessage, signTransaction, getAccessToken]);
+  }), [ready, authenticated, wallet, xs, login, logout, signMessage, signTransaction, getAccessToken]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 const LS = "bountypad-dev-auth";
 function DevAuth({ children }: { children: React.ReactNode }) {
+  const xs = useXSession();
   const [wallet, setWallet] = useState<string | null>(null);
   const [x, setX] = useState<XAccount | null>(null);
   const [ready, setReady] = useState(false);
@@ -133,13 +171,15 @@ function DevAuth({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Auth>(() => ({
     mode: "dev",
-    ready,
-    authenticated: !!wallet || !!x,
+    ready: ready && xs.ready,
+    authenticated: !!wallet || !!x || !!xs.x,
     wallet,
-    x,
+    // A real "Log in with X" session wins over a simulated account.
+    x: xs.x ?? x,
     login,
-    loginWithX: () => { location.href = "/claim"; },
-    logout: async () => { setWallet(null); setX(null); save(null, null); },
+    loginWithX: xs.loginWithX,
+    logoutX: async () => { await xs.logoutX(); setX(null); save(wallet, null); },
+    logout: async () => { await xs.logoutX(); setWallet(null); setX(null); save(null, null); },
     signMessage: async (text) => {
       if (!wallet) throw new Error("Connect a wallet first");
       const r = await fetch(API + "/api/dev/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet, message: text }) });
@@ -156,11 +196,11 @@ function DevAuth({ children }: { children: React.ReactNode }) {
     },
     authHeaders: async () => {
       const h: Record<string, string> = {};
-      if (x) h["x-dev-x-user-id"] = x.id;
+      if (x && !xs.x) h["x-dev-x-user-id"] = x.id;
       return h;
     },
     devSetX: (xa) => { setX(xa); save(wallet, xa); },
-  }), [ready, wallet, x, login]);
+  }), [ready, wallet, x, login, xs]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

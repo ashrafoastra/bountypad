@@ -32,7 +32,8 @@ function contentCheck(post: XPost, ctx: VerifyContext): CheckResult {
       return { id: "CONTENT", label: `Contains $${ctx.ticker}`, pass: ok, detail: ok ? undefined : "cashtag not found" };
     }
     case "TWEET_CONTRACT": {
-      const ok = post.text.includes(ctx.mint);
+      // In the text, or inside a link (pump / explorer / our coin page): t.co hides links in the text.
+      const ok = post.text.includes(ctx.mint) || (post.urls ?? []).some((u) => u.includes(ctx.mint));
       return { id: "CONTENT", label: "Contains the contract address", pass: ok };
     }
     case "QUOTE_LAUNCH": {

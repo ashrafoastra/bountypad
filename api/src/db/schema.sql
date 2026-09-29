@@ -186,3 +186,44 @@ create table if not exists price_ticks (
   side text
 );
 create index if not exists price_ticks_token on price_ticks (token_id, at)
+;
+
+-- ---- "Log in with X" (OAuth 2.0 + PKCE, our own X app) ----
+-- One row per login attempt: CSRF state + PKCE verifier, valid 10 minutes.
+create table if not exists oauth_states (
+  state text primary key,
+  verifier text not null,
+  purpose text not null,                 -- 'login' (claimants) | 'platform' (our posting account)
+  return_to text not null default '/claim',
+  created_at timestamptz not null default now()
+);
+-- After X redirects back, a one-time code hands the login to the website (2 minutes).
+create table if not exists login_codes (
+  code text primary key,
+  x_user_id text not null references profiles(x_user_id),
+  return_to text not null,
+  created_at timestamptz not null default now()
+);
+-- Sessions: the cookie holds the random id; the X account is proven by X itself.
+create table if not exists sessions (
+  id text primary key,
+  x_user_id text not null references profiles(x_user_id),
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+create index if not exists sessions_user on sessions (x_user_id);
+-- The platform's own X account (tweet.write + offline.access), used for launch posts and receipts.
+create table if not exists platform_x (
+  id int primary key default 1,
+  x_user_id text not null,
+  username text not null,
+  access_token text not null,
+  refresh_token text,
+  expires_at timestamptz not null,
+  updated_at timestamptz not null default now()
+);
+
+-- ---- listing ----
+alter table tokens add column if not exists featured boolean not null default false;
+alter table tokens add column if not exists hidden boolean not null default false;
+alter table bounties add column if not exists receipt_post_id text

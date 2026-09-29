@@ -5,13 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import type { FeedEvent, Stats, TokenSummary } from "@bountypad/shared";
 import { useEvents, useHealth, useLive } from "@/lib/api";
-import { sol, short } from "@/lib/format";
-import { Counter, Crosses, Skeleton, SplitButton } from "@/components/ui";
+import { actionText, fmtCompact, fmtPrice, fmtUsd, sol, short } from "@/lib/format";
+import { Brackets, Change, Counter, Crosses, Skeleton, SplitButton, TokenImage } from "@/components/ui";
 import { FeedItem, TokenCard, TokenRow, TokenTableHead } from "@/components/cards";
 import { explorer } from "@/lib/chain";
 
 const LIVE = ["OPEN", "DETECTED_CONFIRMING", "VOTING"];
-type Tab = "pot" | "new" | "done";
+type Tab = "trending" | "pot" | "new" | "done";
 
 export default function HomePage() {
   return <Suspense><Home /></Suspense>;
@@ -21,10 +21,12 @@ function Home() {
   const q = (useSearchParams().get("q") ?? "").trim().toLowerCase();
   const { data: health } = useHealth();
   const solUsd = health?.solUsd ?? 150;
-  const [tab, setTab] = useState<Tab>("pot");
+  const [tab, setTab] = useState<Tab>("trending");
   const [view, setView] = useState<"list" | "grid">("list");
   const { data: stats } = useLive<Stats>("/api/stats", { every: 5000, on: (e) => e.type !== "TRADE" });
-  const { data: byPot } = useLive<TokenSummary[]>("/api/tokens?sort=pot", { every: 5000, on: (e) => e.type !== "TRADE" });
+  const { data: featured } = useLive<TokenSummary[]>("/api/tokens?featured=1", { every: 8000, on: (e) => e.type !== "TRADE" });
+  const { data: byTrend } = useLive<TokenSummary[]>("/api/tokens?sort=trending", { every: 6000, on: (e) => e.type !== "TRADE" });
+  const { data: byPot } = useLive<TokenSummary[]>("/api/tokens?sort=pot", { every: 6000, on: (e) => e.type !== "TRADE" });
   const { data: byNew } = useLive<TokenSummary[]>("/api/tokens?sort=new", { every: 8000, on: (e) => e.type === "TOKEN_LAUNCHED" });
   const { data: initialFeed } = useLive<FeedEvent[]>("/api/feed?limit=12", { every: 60000, on: () => false });
   const [live, setLive] = useState<FeedEvent[]>([]);
@@ -34,14 +36,17 @@ function Home() {
   const term = q.replace(/^[$@]/, "");
   const match = (s: TokenSummary) => !term || [s.token.name, s.token.ticker, s.target.username, s.target.name].some((v) => v.toLowerCase().includes(term));
   const rows = useMemo(() => {
-    const src = tab === "new" ? byNew : byPot;
-    return (src ?? []).filter(match).filter((s) => tab === "done" ? s.bounty.status === "PAID" : tab === "pot" ? s.bounty.status !== "PAID" : true).slice(0, 25);
-  }, [byPot, byNew, tab, term]); // eslint-disable-line react-hooks/exhaustive-deps
+    const src = tab === "new" ? byNew : tab === "trending" ? byTrend : byPot;
+    return (src ?? []).filter(match).filter((s) => tab === "done" ? s.bounty.status === "PAID" : tab === "new" ? true : s.bounty.status !== "PAID").slice(0, 25);
+  }, [byTrend, byPot, byNew, tab, term]); // eslint-disable-line react-hooks/exhaustive-deps
   const total = byPot?.length ?? 0;
+  const official = (featured ?? []).filter(match);
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28">
       {!q && <Hero stats={stats} />}
+
+      {official.length > 0 && <Official items={official} solUsd={solUsd} />}
 
       <section id="challenges" className="scroll-mt-24">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -52,7 +57,7 @@ function Home() {
           <div className="flex items-center gap-3">
             {q && <Link href="/" className="btn btn-outline h-8 text-[13px]">Clear</Link>}
             <div className="seg-group">
-              {([["pot", "Top pot"], ["new", "Newest"], ["done", "Completed"]] as const).map(([k, l]) => (
+              {([["trending", "Trending"], ["pot", "Top pot"], ["new", "Newest"], ["done", "Completed"]] as const).map(([k, l]) => (
                 <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
               ))}
             </div>
@@ -63,10 +68,10 @@ function Home() {
           </div>
         </div>
 
-        {!byPot ? (
+        {!byPot || !byTrend ? (
           <div className="frame"><Crosses />{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[68px] border-b border-line" />)}</div>
         ) : total === 0 && !q ? (
-          <EmptyMarket />
+          <EmptyMarket hasOfficial={official.length > 0} />
         ) : rows.length === 0 ? (
           <div className="frame py-16 text-center text-mute"><Crosses />{q ? "No coins match your search." : tab === "done" ? "No challenge has been completed yet." : "Nothing here yet."}</div>
         ) : view === "grid" ? (
@@ -187,16 +192,52 @@ function Hero({ stats }: { stats: Stats | null }) {
   );
 }
 
-function EmptyMarket() {
+function EmptyMarket({ hasOfficial }: { hasOfficial: boolean }) {
   return (
     <div className="frame grid md:grid-cols-[1fr_auto] items-center gap-8 px-6 sm:px-10 py-14">
       <Crosses />
       <div>
-        <div className="text-[22px] sm:text-[26px] tracking-[-0.02em]">No challenges yet.</div>
-        <p className="text-mute mt-2 max-w-xl leading-relaxed">Bounty Pad is new. The first coin launched here opens the market: pick the person, the action and the deadline, and the pot starts filling with the first trade.</p>
+        <div className="text-[22px] sm:text-[26px] tracking-[-0.02em]">{hasOfficial ? "Be the first community challenge." : "No challenges yet."}</div>
+        <p className="text-mute mt-2 max-w-xl leading-relaxed">Every coin launched here is listed automatically, and the most traded ones rise to the top by themselves. Pick the person, the action and the deadline: the pot starts filling with the first trade.</p>
       </div>
-      <div><SplitButton href="/launch">Launch the first coin</SplitButton></div>
+      <div><SplitButton href="/launch">Launch a coin</SplitButton></div>
     </div>
+  );
+}
+
+/** The platform's own coin, pinned above the market (set by an admin: npm run admin -w api -- feature <mint>). */
+function Official({ items, solUsd }: { items: TokenSummary[]; solUsd: number }) {
+  return (
+    <section>
+      <div className="flex items-end justify-between mb-6">
+        <div><div className="label mb-3">Official</div><h2 className="h2">The Bounty Pad coin</h2></div>
+      </div>
+      <div className="flex flex-col gap-4">
+        {items.map((s) => {
+          const pot = sol(s.bounty.potLamports);
+          return (
+            <Link key={s.token.id} href={`/token/${s.token.id}`} className="frame grid md:grid-cols-[auto_1fr_auto] items-center gap-6 p-5 sm:p-6 hover:bg-panel transition-colors">
+              <Crosses />
+              <div className="brackets p-1.5 w-fit"><Brackets /><TokenImage name={s.token.name} ticker={s.token.ticker} src={s.token.imageUrl} className="w-24 h-24" textSize="text-sm" /></div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-[26px] tracking-[-0.03em]">{s.token.name}</span>
+                  <span className="font-mono text-sm text-mute">${s.token.ticker}</span>
+                  <span className="label border border-line-2 px-2 h-6 inline-flex items-center !text-ink">Official</span>
+                </div>
+                <div className="text-mute text-sm mt-2 truncate">Challenge for @{s.target.username}: {actionText(s.bounty.action, s.token.ticker, s.bounty.phrase)}</div>
+              </div>
+              <div className="grid grid-cols-4 gap-6 md:gap-8">
+                <div><div className="label !text-[10px]">Price</div><div className="num mt-1.5">{fmtPrice(s.market.priceSol)}</div></div>
+                <div><div className="label !text-[10px]">24h</div><div className="mt-1.5"><Change pct={s.market.change24h} /></div></div>
+                <div><div className="label !text-[10px]">MCap</div><div className="num mt-1.5">{s.market.marketCapSol === null ? "—" : fmtCompact(s.market.marketCapSol)}</div></div>
+                <div><div className="label !text-[10px]">Pot</div><div className="num mt-1.5">{pot.toFixed(3)}</div><div className="num text-[11px] text-dim">{fmtUsd(pot * solUsd)}</div></div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

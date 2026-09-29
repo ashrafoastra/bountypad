@@ -13,7 +13,7 @@ if (!bearer && !env.xConsumer) {
   process.exit(1);
 }
 const x = new RealX(bearer, (process.env.X_FIELD_STYLE as "tweet" | "post") || "tweet", undefined, env.xConsumer);
-console.log(`Using: ${bearer ? "X_BEARER_TOKEN" : env.xConsumer!.kind === "api-key" ? "X_API_KEY + X_API_SECRET" : "X_CLIENT_ID + X_CLIENT_SECRET"}`);
+console.log(`Using: ${bearer ? "X_BEARER_TOKEN" : "X_API_KEY + X_API_SECRET"}`);
 x.lookupUser(handle)
   .then((u) => {
     if (!u) { console.log(`\n✓ Credentials work, but @${handle} doesn't exist.\n`); return; }

@@ -135,21 +135,22 @@ export default function Launch() {
                   <span className="ml-auto label !text-green">✓ Found</span>
                 </motion.div>
               ) : <ErrorNote msg={lookup.reason} />)}
+              {health?.xMode === "real" && <p className="text-dim text-sm">Looked up live on X. The permanent account ID is stored, so a renamed or sold handle can never claim.</p>}
               {health?.xMode === "mock" && <p className="text-dim text-sm">Simulation accounts: novareyes, jaxkimura, alinamarsh, theo_voss, sofiaokafor, bytezen. Try lockedlena (private) or novaparody (parody) to see rejections.</p>}
             </>)}
 
             {step === 2 && (<>
               <div className="grid gap-3">
-                {ACTIONS.map((a) => (
-                  <button key={a.id} onClick={() => setF({ ...f, action: a.id })}
-                    className={`text-left border p-4 transition-colors ${f.action === a.id ? "border-ink bg-panel-2" : "border-line hover:border-line-2 hover:bg-panel"}`}>
+                {ACTIONS.map((a) => { const off = a.id === "QUOTE_LAUNCH" && health?.platformX === false; return (
+                  <button key={a.id} disabled={off} onClick={() => setF({ ...f, action: a.id })}
+                    className={`text-left border p-4 transition-colors disabled:opacity-40 disabled:pointer-events-none ${f.action === a.id ? "border-ink bg-panel-2" : "border-line hover:border-line-2 hover:bg-panel"}`}>
                     <div className="flex items-center gap-3">
                       <span className={`w-4 h-4 border flex items-center justify-center ${f.action === a.id ? "border-ink" : "border-dim"}`}>{f.action === a.id && <span className="w-2 h-2 bg-ink" />}</span>
                       <span>{a.title}</span>
                     </div>
-                    <p className="text-mute text-sm mt-1.5 ml-7">{a.desc.replace("TICKER", ticker)}</p>
+                    <p className="text-mute text-sm mt-1.5 ml-7">{off ? "Available once the platform's X account is connected (it publishes the launch post)." : a.desc.replace("TICKER", ticker)}</p>
                   </button>
-                ))}
+                ); })}
               </div>
               {f.action === "VIDEO_PHRASE" && (
                 <Field label="The phrase they must say" hint="Short and natural. Scored against a transcript of their video.">

@@ -1,3 +1,4 @@
+import { upsertProfile } from "../db/repo";
 import { randomUUID } from "node:crypto";
 import { secondsFromNow, type Ctx } from "../app";
 import type { Q } from "../db";
@@ -38,6 +39,7 @@ export async function watch(ctx: Ctx) {
     [String(ctx.env.timing.deadlineGraceSec)],
   );
   for (const [targetId, group] of groupByTarget(open.map((b: any) => ({ ...b, targetXUserId: b.target_x_user_id })))) {
+    await refreshHandle(ctx, targetId, group as any[]);
     const videoBounties = group.filter((b: any) => b.action === "VIDEO_PHRASE");
     let timeline: XPost[] | null = null;
     if (videoBounties.length) {
@@ -58,7 +60,8 @@ export async function watch(ctx: Ctx) {
         } else {
           const q = buildSearchQuery({ action: b.action, username: b.target_username, ticker: b.ticker, mint: b.mint, launchPostId: b.launch_post_id });
           if (!q) continue;
-          candidates = await ctx.x.searchRecent(q, b.last_seen_post_id);
+          // Never read posts from before the launch (pay-per-use: every post returned is billed).
+          candidates = await ctx.x.searchRecent(q, b.last_seen_post_id, new Date(b.token_created_at).toISOString());
         }
         if (!candidates.length) continue;
         candidates.sort((a, c) => (BigInt(a.id) < BigInt(c.id) ? -1 : 1)); // oldest first: the first valid post wins
@@ -75,6 +78,28 @@ export async function watch(ctx: Ctx) {
         log(`watch error for bounty ${b.id}:`, (e as Error).message);
       }
     }
+  }
+}
+
+/**
+ * Search queries use the handle (X's from: operator takes a username), but a target can rename.
+ * Once a day per watched target, re-read the account by its permanent ID and update the handle,
+ * so detection follows renames. Verification itself always compares the author's numeric ID.
+ */
+async function refreshHandle(ctx: Ctx, targetId: string, group: any[]) {
+  if (!ctx.x.lookupUserById) return;
+  const p = (await ctx.db.query(`select username, updated_at from profiles where x_user_id=$1`, [targetId]))[0];
+  if (!p || Date.now() - Date.parse(p.updated_at) < 24 * 3600_000) return;
+  try {
+    const u = await ctx.x.lookupUserById(targetId);
+    if (!u) { await ctx.db.query(`update profiles set updated_at=now() where x_user_id=$1`, [targetId]); return; }
+    await upsertProfile(ctx.db, u);
+    if (u.username.toLowerCase() !== String(p.username).toLowerCase()) {
+      log(`@${p.username} is now @${u.username} (id ${targetId})`);
+      for (const b of group) b.target_username = u.username;
+    }
+  } catch (e) {
+    log(`handle refresh failed for ${targetId}:`, (e as Error).message);
   }
 }
 

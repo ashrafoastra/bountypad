@@ -91,3 +91,18 @@ Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hn
 | SIM chain uses a constant-product curve with virtual reserves (30 SOL / 1.073B tokens, graduation 85 SOL) and never sells more than a wallet holds | Believable prices and holder balances in the simulation. Real coins use Meteora's curve. |
 | X: `X_CLIENT_ID` / `X_CLIENT_SECRET` are accepted as a last resort for the app-only token exchange; the API checks them at startup and says clearly if X refuses | The owner's credits are on that app; the Bearer Token of the same app is the documented way and uses the same credits. |
 | `shared/` changes: `TokenSummary.market` (`MarketStats`), `Trade.tokenAmount` / `priceSol`, `TokenChart`, `Candle`, `ChartTimeframe`, `GET /api/tokens/:id/chart` | **Needs approval from all 3.** |
+
+## Real X login, reading hardening, listing (2026-09-29)
+
+| Decision | Why |
+|---|---|
+| Claims use **our own X app** (OAuth 2.0 Authorization Code + PKCE S256, confidential client), not Privy. Scopes `users.read tweet.read`; the API reads `GET /2/users/me` and revokes the token at once | Owner: identity must be proven directly by X. Nothing third-party in the trust path; we keep no claimant token. |
+| Callback on the API (`X_CALLBACK_URL`, default `http://127.0.0.1:4000/api/auth/x/callback`), then a one-time code (2 min) hands the login to the site, which gets an httpOnly `SameSite=Lax` session cookie (30 days) | X is strict about callback URLs; the cookie must live where the site calls the API. Production: API on a subdomain of the site. |
+| `identify()`: the X account comes only from that session (or the dev header with the simulated X). A Privy token now only proves wallets | One source of truth for "who is this person on X". |
+| State (CSRF) single-use, 10 min; state-changing auth calls must come from `WEB_ORIGIN`; return paths limited to our own site | Standard OAuth hardening, covered by tests with a fake X that enforces PKCE and exact redirect URIs. |
+| Platform X account (`tweet.write offline.access`, refresh tokens rotated) posts the launch announcement and a receipt reply after verification. Launch posts never @mention the target | QUOTE_LAUNCH needs a real post to quote; §6.7 receipts; no notification before people act. |
+| Reader: long posts read from `note_tweet`; contract matched in expanded links too (`url:` in the query); search starts at the coin's launch (`start_time`), then `since_id`; deleted (`resource-not-found`) ≠ other errors (retried); field naming falls back between `tweet.fields` and `post.fields`; target handles refreshed daily by permanent ID | Correctness (no missed or false results) and cost (pay-per-use bills every post returned). Checked against docs.x.com. |
+| Path 1 (Privy pregenerated wallet per X account) stays OFF (`PRIVY_PREGENERATE=false`): with X login outside Privy, a person couldn't open a Privy wallet keyed to their X account. Payouts use Path 2 (log in with X, choose a wallet) | Consistent with the owner's choice; revisit only if Privy X login is re-enabled for wallet access. |
+| `x:verify` script: dry run of the whole read + verify path on a real post | Verify the logic with real data before launch, without touching the database. |
+| Listing: real launches only; default sort **Trending** = SOL traded in 24h; `featured` pins the platform's own coin above the market; `hidden` removes a coin from every list (admin). `db:reset` for a clean start | Owner: before launch the only coin shown is ours; a hyped coin rises by itself. Resolves the §11 "protocol token" question for listing (mechanics still open). |
+| `shared/` changes: `Token.featured`, `Health.xLogin/platformX`, auth routes | **Needs approval from all 3.** |

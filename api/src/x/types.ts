@@ -26,6 +26,8 @@ export interface XPost {
   text: string;
   createdAt: string;
   cashtags: string[];
+  /** Expanded links in the post (t.co hides them in `text`). */
+  urls?: string[];
   referenced: { type: RefType; id: string }[];
   /** Oldest to newest. The last id is the latest edited version. */
   editHistoryIds: string[];
@@ -34,8 +36,10 @@ export interface XPost {
 
 export interface XProvider {
   lookupUser(username: string): Promise<XUser | null>;
-  /** Recent search (last 7 days). Returns newest first. */
-  searchRecent(query: string, sinceId?: string | null): Promise<XPost[]>;
+  /** By permanent user ID (to follow handle changes). */
+  lookupUserById?(id: string): Promise<XUser | null>;
+  /** Recent search (last 7 days). Returns newest first. startTime: never read posts older than this. */
+  searchRecent(query: string, sinceId?: string | null, startTime?: string | null): Promise<XPost[]>;
   /** Returns null if the post no longer exists (deleted). */
   getPost(id: string): Promise<XPost | null>;
   /** A user's own posts, newest first. */

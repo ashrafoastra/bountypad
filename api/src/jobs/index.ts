@@ -5,6 +5,7 @@ import { simTradeTick } from "../sim/sim";
 import { samplePools } from "../services/market";
 import { claimFees, syncBounties } from "../services/onchain";
 import { reconcileLaunches } from "../services/launch";
+import { postPendingLaunches, postReceipts } from "../services/xposter";
 
 /** Single-process scheduler. Each job never overlaps with itself. */
 function every(name: string, sec: number, fn: () => Promise<void>) {
@@ -25,6 +26,7 @@ export function startJobs(ctx: Ctx) {
     every("votes", 5, () => closeVotes(ctx)),
     every("payouts", 5, () => releaseDue(ctx)),
     every("expire", 60, () => expire(ctx)),
+    every("x-posts", 60, async () => { await postPendingLaunches(ctx); await postReceipts(ctx); }),
   ];
   if (ctx.chain) {
     const s = ctx.env.solana;

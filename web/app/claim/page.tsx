@@ -5,7 +5,7 @@ import type { Payout, Profile, TokenSummary } from "@bountypad/shared";
 import { api, useHealth } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtSol, short } from "@/lib/format";
-import { Avatar, ErrorNote, StatusPill, Verified, XIcon } from "@/components/ui";
+import { Avatar, Crosses, ErrorNote, StatusPill, Verified, XIcon } from "@/components/ui";
 
 type Me = { profile: Profile | null; bounties: TokenSummary[]; payouts: Payout[] };
 type SimUser = { id: string; username: string; name: string; avatarUrl: string | null; verified: boolean; protected: boolean; parody: boolean };
@@ -44,15 +44,30 @@ export default function Claim() {
   if (!auth.ready) return null;
 
   if (!auth.x) return (
-    <div className="max-w-xl mx-auto text-center flex flex-col items-center gap-6 pt-6">
+    <div className="max-w-2xl mx-auto flex flex-col items-center text-center gap-6 pt-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/logo.svg" alt="" width={64} height={64} />
+      <img src="/brand/logo.svg" alt="" width={56} height={56} />
       <h1 className="display text-[40px] sm:text-[64px] text-balance">Did someone put a bounty on you?</h1>
-      <p className="text-mute text-lg">Log in with X to see every coin that names you, collect the ones you've completed, or opt out entirely. A wallet is created for you if you don't have one.</p>
-      {auth.mode === "privy" ? (
-        <button className="btn btn-primary h-14 px-8 text-[16px]" onClick={auth.loginWithX}><XIcon size={18} /> {auth.authenticated ? "Link your X account" : "Log in with X"}</button>
-      ) : (
-        <div className="w-full card p-4 text-left">
+      <p className="text-mute text-[17px] leading-relaxed max-w-xl">Log in with X to see every coin that names you, collect the ones you've completed, or opt out entirely.</p>
+      {health?.xLogin ? (
+        <>
+          <button className="btn btn-primary h-14 px-8 text-[16px]" onClick={auth.loginWithX}><XIcon size={18} /> Log in with X</button>
+          <div className="frame w-full text-left grid sm:grid-cols-3 mt-4">
+            <Crosses />
+            {[
+              ["Verified by X", "You sign in on x.com. X tells us which account it is: nobody can claim for you."],
+              ["Read-only", "We only ask to read your profile. We can't post, follow or DM as you, and we drop the X token right away."],
+              ["Your wallet, your choice", "Pick any Solana wallet to receive, or connect one here. Payouts come from the on-chain escrow."],
+            ].map(([t, d], i) => (
+              <div key={t} className={`p-5 border-line ${i ? "border-t sm:border-t-0 sm:border-l" : ""}`}>
+                <div className="label !text-ink">{t}</div>
+                <p className="text-mute text-sm mt-2 leading-relaxed">{d}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : health?.xMode === "mock" && users.length > 0 ? (
+        <div className="w-full frame p-4 text-left">
           <div className="label mb-3 px-2">Test mode: log in as a simulated X account</div>
           <div className="grid gap-1">
             {users.map((u) => (
@@ -61,8 +76,10 @@ export default function Claim() {
               </button>
             ))}
           </div>
-          <p className="text-dim text-xs mt-3 px-2">Set NEXT_PUBLIC_PRIVY_APP_ID to use real X login.</p>
+          <p className="text-dim text-xs mt-3 px-2">Set X_CLIENT_ID and X_CLIENT_SECRET in api/.env for the real "Log in with X".</p>
         </div>
+      ) : (
+        <ErrorNote msg="X login isn't set up on this server yet (X_CLIENT_ID / X_CLIENT_SECRET in api/.env)." />
       )}
       {err && <ErrorNote msg={err} />}
     </div>
@@ -75,8 +92,12 @@ export default function Claim() {
     <div className="max-w-4xl mx-auto flex flex-col gap-6">
       <div className="card p-6 flex flex-wrap items-center gap-4">
         <Avatar name={auth.x.name} src={auth.x.avatarUrl} size={60} />
-        <div><div className="text-xl font-medium flex items-center gap-1.5">{auth.x.name}<Verified /></div><div className="text-mute flex items-center gap-1.5"><XIcon size={13} />@{auth.x.username}</div></div>
-        {auth.mode === "dev" && <button className="ml-auto text-sm text-mute hover:text-ink" onClick={() => auth.devSetX?.(null)}>Switch account</button>}
+        <div>
+          <div className="text-xl flex items-center gap-1.5">{auth.x.name}{auth.x.verified && <Verified />}</div>
+          <div className="text-mute flex items-center gap-1.5"><XIcon size={13} />@{auth.x.username}</div>
+          <div className="label mt-2 !text-green">{health?.xLogin ? "Confirmed by X" : "Simulated account"}</div>
+        </div>
+        <button className="ml-auto btn btn-outline h-9 text-[13px]" onClick={() => auth.logoutX()}>Log out of X</button>
       </div>
 
       {ready.length > 0 && !p?.linkedWallet && (

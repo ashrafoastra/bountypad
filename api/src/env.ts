@@ -7,14 +7,17 @@ const num = (v: string | undefined, d: number) => (v ? Number(v) : d);
 const xToken = process.env.X_BEARER_TOKEN || "";
 /** Alternative to the bearer token: the app's API Key + Secret ("consumer keys"); the API exchanges them for one. */
 const xApiKey = process.env.X_API_KEY || "", xApiSecret = process.env.X_API_SECRET || "";
-/** Last resort: the OAuth 2.0 Client ID + Secret, tried with the same app-only exchange. */
+/**
+ * "Log in with X" (OAuth 2.0 Authorization Code + PKCE, our own X app): the OAuth 2.0 Client ID +
+ * Client Secret from developer.x.com → your app → Keys and tokens. Used to PROVE who a target is
+ * when they claim, and to connect the platform's X account (launch posts, receipts).
+ * Reading posts uses the app-only Bearer Token above (X refuses this pair for app-only reads).
+ */
 const xClientId = process.env.X_CLIENT_ID || "", xClientSecret = process.env.X_CLIENT_SECRET || "";
-/** X: real as soon as X_BEARER_TOKEN (or X_API_KEY + X_API_SECRET) is set. X_MODE=mock forces the simulated X. */
-const xMode: "mock" | "real" = process.env.X_MODE === "mock" || !(xToken || (xApiKey && xApiSecret) || (xClientId && xClientSecret)) ? "mock" : "real";
+/** X reading: real as soon as X_BEARER_TOKEN (or X_API_KEY + X_API_SECRET) is set. X_MODE=mock forces the simulated X. */
+const xMode: "mock" | "real" = process.env.X_MODE === "mock" || !(xToken || (xApiKey && xApiSecret)) ? "mock" : "real";
 /** Which app-only credentials the API exchanges for a bearer when X_BEARER_TOKEN isn't set. */
-const xConsumer = xApiKey && xApiSecret
-  ? { key: xApiKey, secret: xApiSecret, kind: "api-key" as const }
-  : xClientId && xClientSecret ? { key: xClientId, secret: xClientSecret, kind: "oauth2-client" as const } : undefined;
+const xConsumer = xApiKey && xApiSecret ? { key: xApiKey, secret: xApiSecret, kind: "api-key" as const } : undefined;
 /** Chain: "solana" = real launches/trades/escrow on SOLANA_RPC_URL; "sim" = simulated trades and payouts. */
 const chain: "sim" | "solana" = process.env.CHAIN === "solana" ? "solana" : "sim";
 /** Fully simulated (mock X + sim chain): demo data is seeded and reset on every start. */
@@ -44,6 +47,15 @@ export const env = {
   chain,
   xBearer: xToken,
   xConsumer,
+  /** Our X app's OAuth 2.0 client ("Log in with X" for claims + the platform account). */
+  xOAuth: xClientId && xClientSecret ? {
+    clientId: xClientId,
+    clientSecret: xClientSecret,
+    /** Must match a Callback URI in the X app settings EXACTLY. */
+    callbackUrl: process.env.X_CALLBACK_URL || `${(process.env.PUBLIC_API_URL || `http://127.0.0.1:${num(process.env.PORT, 4000)}`).replace(/\/$/, "")}/api/auth/x/callback`,
+  } : null,
+  /** Sessions from "Log in with X" last this long. */
+  sessionDays: num(process.env.SESSION_DAYS, 30),
   /** "tweet" = tweet.fields/referenced_tweets, "post" = post.fields/referenced_posts. Verify with Test C. */
   xFieldStyle: (process.env.X_FIELD_STYLE || "tweet") as "tweet" | "post",
   whisperUrl: process.env.WHISPER_URL || "",

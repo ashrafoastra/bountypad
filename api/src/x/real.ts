@@ -7,13 +7,12 @@ import type { XPost, XProvider, XUser, XMedia, RefType } from "./types";
  * accepts both. Confirm with one live call before launch (docs/decisions.md, Test C).
  */
 export class RealX implements XProvider {
-  constructor(private bearer: string, private style: "tweet" | "post" = "tweet", private base = "https://api.x.com/2", private consumer?: { key: string; secret: string; kind?: "api-key" | "oauth2-client" }) {}
+  constructor(private bearer: string, private style: "tweet" | "post" = "tweet", private base = "https://api.x.com/2", private consumer?: { key: string; secret: string; kind?: "api-key" }) {}
 
   /**
    * App-only auth. Uses X_BEARER_TOKEN, or exchanges the API Key + Secret for one
    * (POST /oauth2/token, grant_type=client_credentials: https://docs.x.com/fundamentals/authentication/oauth-2-0/application-only).
-   * X_CLIENT_ID + X_CLIENT_SECRET (the OAuth 2.0 pair) are tried the same way; X documents that pair
-   * for user login, so if X refuses it, the Bearer Token from the SAME app is the answer (same credits).
+   * (The OAuth 2.0 Client ID/Secret are for "Log in with X", see x/oauth.ts; X refuses them here.)
    */
   /** Exchange/validate credentials now (startup check). */
   async authCheck() { await this.token(); }
@@ -31,25 +30,35 @@ export class RealX implements XProvider {
     });
     const body: any = await res.json().catch(() => ({}));
     if (!res.ok || !body.access_token) {
-      const what = this.consumer.kind === "oauth2-client" ? "OAuth 2.0 Client ID/Secret" : "API Key/Secret";
-      const hint = this.consumer.kind === "oauth2-client"
-        ? "X only accepts that pair for user login. In the same app (same credits): Keys and tokens → Bearer Token → Generate, then set X_BEARER_TOKEN."
-        : "Check them in the developer portal, or use X_BEARER_TOKEN.";
-      throw new Error(`X rejected the ${what} (${res.status}${body.error ? ` ${body.error}` : ""}). ${hint}`);
+      throw new Error(`X rejected the API Key/Secret (${res.status}${body.error ? ` ${body.error}` : ""}). Check them in the developer portal, or use X_BEARER_TOKEN.`);
     }
     this.bearer = body.access_token;
     return this.bearer;
   }
 
   private get postParams() {
-    const f = this.style === "tweet" ? "tweet.fields" : "post.fields";
-    const ref = this.style === "tweet" ? "referenced_tweets" : "referenced_posts";
-    const edit = this.style === "tweet" ? "edit_history_tweet_ids" : "edit_history_post_ids";
+    const t = this.style === "tweet";
     return {
-      [f]: ["author_id", "created_at", "entities", ref, edit, "attachments"].join(","),
+      [t ? "tweet.fields" : "post.fields"]: ["author_id", "created_at", "entities", t ? "referenced_tweets" : "referenced_posts",
+        t ? "edit_history_tweet_ids" : "edit_history_post_ids", "attachments", t ? "note_tweet" : "note_post"].join(","),
       expansions: "attachments.media_keys",
       "media.fields": "type,duration_ms,variants",
     };
+  }
+
+  /**
+   * X renamed "tweet" fields to "post" fields in its docs. If X ever rejects the names we send,
+   * switch to the other naming once and retry, so detection keeps working either way.
+   */
+  private async getPosts(path: string, params: Record<string, string | undefined>) {
+    try {
+      return await this.get(path, { ...params, ...this.postParams });
+    } catch (e) {
+      if (!/^X API 400/.test((e as Error).message) || !/(tweet|post)\.fields|referenced_|edit_history|note_/.test((e as Error).message)) throw e;
+      this.style = this.style === "tweet" ? "post" : "tweet";
+      console.warn(`[x] switched field naming to "${this.style}.fields"`);
+      return this.get(path, { ...params, ...this.postParams });
+    }
   }
 
   private async get(path: string, params: Record<string, string | undefined> = {}) {
@@ -69,32 +78,57 @@ export class RealX implements XProvider {
   }
 
   async lookupUser(username: string): Promise<XUser | null> {
-    const b = await this.get(`/users/by/username/${encodeURIComponent(username)}`, {
-      "user.fields": "protected,verified,profile_image_url,parody",
-    });
-    const u = b?.data;
-    if (!u) return null;
-    return {
-      id: u.id, username: u.username, name: u.name, avatarUrl: u.profile_image_url ?? null,
-      verified: !!u.verified, protected: !!u.protected, parody: !!u.parody,
-    };
+    const b = await this.get(`/users/by/username/${encodeURIComponent(username)}`, { "user.fields": USER_FIELDS });
+    return b?.data ? parseUser(b.data) : null;
   }
 
-  async searchRecent(query: string, sinceId?: string | null): Promise<XPost[]> {
-    const b = await this.get(`/tweets/search/recent`, { query, since_id: sinceId ?? undefined, max_results: "25", ...this.postParams });
-    return parsePosts(b);
+  /** By permanent ID: used to keep a target's current handle fresh (handles can change). */
+  async lookupUserById(id: string): Promise<XUser | null> {
+    const b = await this.get(`/users/${encodeURIComponent(id)}`, { "user.fields": USER_FIELDS });
+    return b?.data ? parseUser(b.data) : null;
   }
 
+  /**
+   * Recent search (last 7 days). `startTime` limits reads to posts after the coin launched: with
+   * pay-per-use, every post returned costs money, so we never read older ones.
+   */
+  async searchRecent(query: string, sinceId?: string | null, startTime?: string | null): Promise<XPost[]> {
+    const params: Record<string, string | undefined> = { query, max_results: "25" };
+    if (sinceId) params.since_id = sinceId;
+    else if (startTime) params.start_time = clampStart(startTime);
+    return parsePosts(await this.getPosts(`/tweets/search/recent`, params));
+  }
+
+  /**
+   * One post. Returns null ONLY when X says the post doesn't exist (deleted): X answers 200 with
+   * an errors[] entry of type ".../resource-not-found" and no data. Any other error (suspended or
+   * protected account, outage) throws, so a recheck is retried instead of failing the bounty.
+   */
   async getPost(id: string): Promise<XPost | null> {
-    const b = await this.get(`/tweets/${id}`, this.postParams);
-    if (!b || !b.data) return null; // deleted posts come back as errors with no data
-    return parsePosts({ data: [b.data], includes: b.includes })[0] ?? null;
+    const b = await this.getPosts(`/tweets/${id}`, {});
+    if (b?.data) return parsePosts({ data: [b.data], includes: b.includes })[0] ?? null;
+    const errs: any[] = b?.errors ?? [];
+    if (!b || errs.some((e) => String(e.type ?? "").endsWith("/resource-not-found"))) return null;
+    throw new Error(`X API: post ${id} unavailable (${errs.map((e) => e.title ?? e.type).join(", ") || "no data"})`);
   }
 
   async getUserPosts(userId: string, sinceId?: string | null): Promise<XPost[]> {
-    const b = await this.get(`/users/${userId}/tweets`, { since_id: sinceId ?? undefined, max_results: "20", ...this.postParams });
-    return parsePosts(b);
+    return parsePosts(await this.getPosts(`/users/${userId}/tweets`, { since_id: sinceId ?? undefined, max_results: "20" }));
   }
+}
+
+const USER_FIELDS = "protected,verified,profile_image_url,parody";
+function parseUser(u: any): XUser {
+  return {
+    id: String(u.id), username: u.username, name: u.name, avatarUrl: u.profile_image_url ? String(u.profile_image_url).replace("_normal", "_400x400") : null,
+    verified: !!u.verified, protected: !!u.protected, parody: !!u.parody,
+  };
+}
+
+/** X recent search only accepts start_time within the last 7 days (and at least 10s ago). */
+function clampStart(iso: string) {
+  const min = Date.now() - 7 * 86400_000 + 60_000, max = Date.now() - 15_000;
+  return new Date(Math.min(max, Math.max(min, Date.parse(iso)))).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 export function parsePosts(body: any): XPost[] {
@@ -109,12 +143,16 @@ export function parsePosts(body: any): XPost[] {
         .sort((a: any, b: any) => (b.bit_rate ?? 0) - (a.bit_rate ?? 0))[0];
       return { type: m.type, durationMs: m.duration_ms ?? null, mp4Url: mp4?.url ?? null };
     });
+    // Long posts (over 280 characters): the full text and its entities are in note_tweet / note_post.
+    const note = d.note_tweet ?? d.note_post ?? null;
+    const ents = [d.entities, note?.entities].filter(Boolean);
     return {
       id: d.id,
       authorId: d.author_id,
-      text: d.text ?? "",
+      text: note?.text ?? d.text ?? "",
       createdAt: d.created_at,
-      cashtags: (d.entities?.cashtags ?? []).map((c: any) => String(c.tag)),
+      cashtags: [...new Set(ents.flatMap((e: any) => (e.cashtags ?? []).map((c: any) => String(c.tag))))],
+      urls: [...new Set(ents.flatMap((e: any) => (e.urls ?? []).map((x: any) => String(x.expanded_url ?? x.url ?? ""))).filter(Boolean))],
       referenced: refs.map((r) => ({ type: r.type, id: r.id })),
       editHistoryIds: d.edit_history_tweet_ids ?? d.edit_history_post_ids ?? [d.id],
       media: med,

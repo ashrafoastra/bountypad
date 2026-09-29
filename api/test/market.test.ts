@@ -15,7 +15,7 @@ let ctx: Ctx;
 beforeEach(async () => {
   const db = await createDb("", { memory: true });
   const x = new MockX();
-  ctx = { db, x, mockX: x, video: new SimVideo(x), holders: new DbHolders(db), payouts: new SimPayouts(), privy: null, chain: null, env: { ...env, sim: true } };
+  ctx = { db, x, mockX: x, video: new SimVideo(x), holders: new DbHolders(db), payouts: new SimPayouts(), privy: null, chain: null, xOAuth: null, env: { ...env, sim: true } };
 });
 
 const coin = () => launch(ctx, { name: "Chart", ticker: "CHART", imageUrl: "https://example.com/c.png", creatorWallet: SIM_CREATOR, targetHandle: "novareyes", action: "TWEET_CASHTAG" });

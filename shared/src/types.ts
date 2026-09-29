@@ -48,6 +48,8 @@ export interface Token {
   launchTx: string | null;
   /** CHAIN=solana: the escrow account holding this coin's pot (PDA of the mint). */
   escrow: string | null;
+  /** The platform's own coin, pinned above the market. */
+  featured: boolean;
   createdAt: string;
 }
 
