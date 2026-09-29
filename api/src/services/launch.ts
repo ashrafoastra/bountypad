@@ -2,7 +2,7 @@ import { randomUUID, randomBytes, createHash } from "node:crypto";
 import bs58 from "bs58";
 import { z } from "zod";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { RULES, normalizeHandle, normalizeTicker, tickerError, handleError, type Profile } from "@bountypad/shared";
+import { LINK_KINDS, type LinkKind, type TokenLinks, RULES, normalizeHandle, normalizeTicker, tickerError, handleError, type Profile } from "@bountypad/shared";
 import type { Ctx } from "../app";
 import { upsertProfile } from "../db/repo";
 import { isSolanaAddress } from "../core/solana";
@@ -26,7 +26,33 @@ export const launchSchema = z.object({
   deadlineDays: z.number().int().min(1).max(365).optional(),
   /** SOL the creator buys in the launch transaction itself (CHAIN=solana). */
   firstBuySol: z.number().min(0).max(50).optional(),
+  /** Social links, like pump.fun / Axiom. Each must be an https link on its platform. */
+  links: z.object(Object.fromEntries(LINK_KINDS.map((k) => [k, link(k)])) as Record<LinkKind, ReturnType<typeof link>>).partial().optional(),
 });
+
+const LINK_HOSTS: Record<LinkKind, RegExp | null> = {
+  website: null,
+  x: /^(www\.)?(x|twitter)\.com$/,
+  telegram: /^(www\.)?(t\.me|telegram\.me)$/,
+  github: /^(www\.)?github\.com$/,
+  tiktok: /^(www\.|m\.)?tiktok\.com$/,
+  youtube: /^(www\.|m\.)?(youtube\.com|youtu\.be)$/,
+};
+const LINK_NAMES: Record<LinkKind, string> = { website: "Website", x: "X", telegram: "Telegram", github: "GitHub", tiktok: "TikTok", youtube: "YouTube" };
+function link(kind: LinkKind) {
+  return z.string().trim().max(200).transform((v, c) => {
+    if (!v) return undefined;
+    let u: URL;
+    try { u = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`); } catch { c.addIssue({ code: "custom", message: `${LINK_NAMES[kind]}: not a valid link` }); return z.NEVER; }
+    const host = LINK_HOSTS[kind];
+    if (u.protocol !== "https:" && u.protocol !== "http:") { c.addIssue({ code: "custom", message: `${LINK_NAMES[kind]}: use an https link` }); return z.NEVER; }
+    if (host && !host.test(u.hostname)) { c.addIssue({ code: "custom", message: `${LINK_NAMES[kind]}: the link must be on ${LINK_NAMES[kind]}` }); return z.NEVER; }
+    u.protocol = "https:";
+    return u.toString();
+  });
+}
+const cleanLinks = (l: Record<string, string | undefined> | undefined) =>
+  Object.fromEntries(Object.entries(l ?? {}).filter(([, v]) => !!v)) as TokenLinks;
 type LaunchInput = z.infer<typeof launchSchema>;
 
 /**
@@ -94,7 +120,7 @@ async function launchPost(ctx: Ctx, t: { id: string; ticker: string; action: str
 interface LaunchRecord {
   mint: string; name: string; ticker: string; imageUrl: string | null; description: string; creatorWallet: string;
   targetXUserId: string; targetUsername: string; action: string; phrase: string | null; deadline: Date;
-  pool?: string | null; launchTx?: string | null;
+  pool?: string | null; launchTx?: string | null; links?: TokenLinks;
 }
 
 /** Token + bounty rows, written together (a coin without its bounty can never exist). */
@@ -103,8 +129,8 @@ async function record(ctx: Ctx, r: LaunchRecord) {
   const launchPostId = await launchPost(ctx, { id: tokenId, ticker: r.ticker, action: r.action, phrase: r.phrase });
   await ctx.db.tx(async (q) => {
     await q.query(
-      `insert into tokens (id, mint, name, ticker, image_url, description, creator_wallet, launch_post_id, pool, launch_tx) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [tokenId, r.mint, r.name, r.ticker, r.imageUrl, r.description, r.creatorWallet, launchPostId, r.pool ?? null, r.launchTx ?? null],
+      `insert into tokens (id, mint, name, ticker, image_url, description, creator_wallet, launch_post_id, pool, launch_tx, links) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [tokenId, r.mint, r.name, r.ticker, r.imageUrl, r.description, r.creatorWallet, launchPostId, r.pool ?? null, r.launchTx ?? null, JSON.stringify(r.links ?? {})],
     );
     await q.query(
       `insert into bounties (id, token_id, target_x_user_id, action, phrase, deadline, status, last_seen_post_id) values ($1,$2,$3,$4,$5,$6,'OPEN',$7)`,
@@ -124,7 +150,7 @@ export async function launch(ctx: Ctx, input: unknown) {
   return record(ctx, {
     mint: bs58.encode(randomBytes(32)), name: req.name, ticker, imageUrl: req.imageUrl ?? null, description: req.description,
     creatorWallet: req.creatorWallet, targetXUserId: target.xUserId, targetUsername: target.username, action: req.action,
-    phrase: req.phrase ?? null, deadline: new Date(Date.now() + days * 86400_000),
+    phrase: req.phrase ?? null, deadline: new Date(Date.now() + days * 86400_000), links: cleanLinks(req.links),
   });
 }
 
@@ -157,7 +183,7 @@ export async function prepareLaunch(ctx: Ctx, input: unknown) {
   const pending = {
     name: req.name, ticker, imageUrl: req.imageUrl ?? null, description: req.description, creatorWallet: req.creatorWallet,
     targetXUserId: target.xUserId, targetUsername: target.username, action: req.action, phrase: req.phrase ?? null,
-    deadline, pool: pool.toBase58(),
+    deadline, pool: pool.toBase58(), links: cleanLinks(req.links),
   };
   await ctx.db.query(
     `insert into pending_launches (id, mint, input, message_hash, expires_at) values ($1,$2,$3,$4, now() + interval '3 minutes')`,
@@ -220,7 +246,7 @@ export async function registerLaunch(ctx: Ctx, p: any, sig: string | null) {
   const out = await record(ctx, {
     mint: p.mint, name: i.name, ticker: i.ticker, imageUrl: i.imageUrl, description: i.description, creatorWallet: i.creatorWallet,
     targetXUserId: i.targetXUserId, targetUsername: i.targetUsername, action: i.action, phrase: i.phrase,
-    deadline: new Date(i.deadline * 1000), pool: i.pool, launchTx: sig,
+    deadline: new Date(i.deadline * 1000), pool: i.pool, launchTx: sig, links: i.links ?? {},
   });
   await ctx.db.query(`delete from pending_launches where id=$1`, [p.id]);
   return out;
@@ -242,9 +268,23 @@ export async function reconcileLaunches(ctx: Ctx) {
 
 /** Metaplex metadata JSON for a coin (the `uri` written on-chain at launch). */
 export async function tokenMetadata(ctx: Ctx, mint: string) {
-  const t = (await ctx.db.query(`select name, ticker, description, image_url from tokens where mint=$1`, [mint]))[0];
-  if (t) return { name: t.name, symbol: t.ticker, description: t.description, image: t.image_url ?? undefined };
-  const p = (await ctx.db.query(`select input from pending_launches where mint=$1`, [mint]))[0];
-  if (p) return { name: p.input.name, symbol: p.input.ticker, description: p.input.description, image: p.input.imageUrl ?? undefined };
-  return null;
+  const t = (await ctx.db.query(`select name, ticker, description, image_url, links from tokens where mint=$1`, [mint]))[0];
+  const src = t
+    ? { name: t.name, ticker: t.ticker, description: t.description, image: t.image_url, links: (t.links ?? {}) as TokenLinks }
+    : await ctx.db.query(`select input from pending_launches where mint=$1`, [mint]).then((r) => r[0] && {
+        name: r[0].input.name, ticker: r[0].input.ticker, description: r[0].input.description, image: r[0].input.imageUrl, links: (r[0].input.links ?? {}) as TokenLinks,
+      });
+  if (!src) return null;
+  const l = src.links;
+  // Metaplex JSON. Top-level website/twitter/telegram is the pump.fun convention that explorers,
+  // Axiom, DexScreener and wallets read; `extensions` carries every link (token-list convention).
+  return {
+    name: src.name, symbol: src.ticker, description: src.description, image: src.image ?? undefined,
+    ...(l.website ? { website: l.website, external_url: l.website } : {}),
+    ...(l.x ? { twitter: l.x } : {}),
+    ...(l.telegram ? { telegram: l.telegram } : {}),
+    extensions: { ...(l.website ? { website: l.website } : {}), ...(l.x ? { twitter: l.x } : {}), ...(l.telegram ? { telegram: l.telegram } : {}),
+      ...(l.github ? { github: l.github } : {}), ...(l.tiktok ? { tiktok: l.tiktok } : {}), ...(l.youtube ? { youtube: l.youtube } : {}) },
+    createdOn: ctx.env.webOrigin,
+  };
 }

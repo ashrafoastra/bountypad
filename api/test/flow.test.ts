@@ -417,3 +417,24 @@ describe("safety", () => {
     await expect(setStatus(ctx.db, bountyId, "PAID", "cheat")).rejects.toThrow(/Illegal/);
   });
 });
+
+describe("social links", () => {
+  it("keeps valid links (normalized to https), rejects links on the wrong platform", async () => {
+    const r = await launch(ctx, {
+      name: "Linked", ticker: "LINKD", creatorWallet: SIM_CREATOR, imageUrl: "https://example.com/c.png", targetHandle: "novareyes", action: "TWEET_CASHTAG",
+      links: { website: "bountypad.xyz", x: "https://x.com/bountypad", telegram: "t.me/bountypad", github: "https://github.com/bountypad", tiktok: "https://www.tiktok.com/@bp", youtube: "https://youtu.be/abc", },
+    });
+    const t = (await ctx.db.query(`select links from tokens where id=$1`, [r.id]))[0];
+    expect(t.links).toEqual({ website: "https://bountypad.xyz/", x: "https://x.com/bountypad", telegram: "https://t.me/bountypad", github: "https://github.com/bountypad", tiktok: "https://www.tiktok.com/@bp", youtube: "https://youtu.be/abc" });
+    const { tokenMetadata } = await import("../src/services/launch");
+    const mint = (await ctx.db.query(`select mint from tokens where id=$1`, [r.id]))[0].mint;
+    const m: any = await tokenMetadata(ctx, mint);
+    expect(m).toMatchObject({ symbol: "LINKD", website: "https://bountypad.xyz/", twitter: "https://x.com/bountypad", telegram: "https://t.me/bountypad" });
+    expect(m.extensions.github).toBe("https://github.com/bountypad");
+
+    await expect(launch(ctx, {
+      name: "Bad", ticker: "BADL", creatorWallet: SIM_CREATOR, imageUrl: "https://example.com/c.png", targetHandle: "novareyes", action: "TWEET_CASHTAG",
+      links: { github: "https://evil.example/github" },
+    })).rejects.toThrow(/GitHub/);
+  });
+});

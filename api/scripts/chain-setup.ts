@@ -65,10 +65,11 @@ async function main() {
   const dbcConfig = key("dbc-config");
   ok(`keys in api/.chain/${cluster}/ (keeper ${keeper.publicKey.toBase58()})`);
 
-  // 1. Fund the keeper (pays the program deploy on devnet: about 2.5 SOL).
+  // 1. Fund the keeper. Deploying the 320 KB escrow program needs ~2.3 SOL of rent plus a temporary
+  //    buffer of the same size (refunded after the deploy), so about 5 SOL the first time.
   let bal = await conn.getBalance(keeper.publicKey);
   const programInfo = await conn.getAccountInfo(ESCROW_PROGRAM_ID);
-  const need = (programInfo ? 0.2 : 3) * LAMPORTS_PER_SOL;
+  const need = (programInfo ? 0.2 : 5) * LAMPORTS_PER_SOL;
   if (bal < need) {
     try {
       const sig = await conn.requestAirdrop(keeper.publicKey, (cluster === "localnet" ? 100 : 2) * LAMPORTS_PER_SOL);
@@ -78,7 +79,7 @@ async function main() {
   }
   if (bal < need) {
     say(`\n  The keeper needs about ${need / LAMPORTS_PER_SOL} SOL on ${cluster} and has ${bal / LAMPORTS_PER_SOL}.`);
-    say(`  Get free devnet SOL at https://faucet.solana.com for this address, then run this again:\n\n    ${keeper.publicKey.toBase58()}\n`);
+    say(`  Get free devnet SOL at https://faucet.solana.com (sign in with GitHub for 5 SOL) for this address, then run this again:\n\n    ${keeper.publicKey.toBase58()}\n`);
     process.exit(2);
   }
   ok(`keeper balance ${bal / LAMPORTS_PER_SOL} SOL`);

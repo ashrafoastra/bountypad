@@ -10,6 +10,7 @@ import { actionText, ago, countdown, fmtCompact, fmtPrice, fmtSol, fmtUsd, short
 import { VoteBars } from "@/components/VoteBars";
 import { TradePanel } from "@/components/TradePanel";
 import { TokenChart } from "@/components/TokenChart";
+import { SocialLinks } from "@/components/SocialLinks";
 import { explorer } from "@/lib/chain";
 import { Avatar, Brackets, Change, CheckList, Counter, Crosses, ErrorNote, PostCard, Skeleton, StatusPill, StatusTimeline, TokenImage, Verified } from "@/components/ui";
 
@@ -65,6 +66,7 @@ export default function TokenPage() {
                 <button onClick={copy} className="font-mono text-xs text-dim hover:text-ink" title="Copy contract">{short(token.mint, 4)} {copied ? "✓" : "⧉"}</button>
                 <StatusPill status={bounty.status} />
               </div>
+              {Object.keys(token.links ?? {}).length > 0 && <div className="mt-3"><SocialLinks links={token.links} /></div>}
             </div>
           </div>
           <div className="grid grid-cols-3 md:grid-cols-6 flex-1 border-t xl:border-t-0 border-line">

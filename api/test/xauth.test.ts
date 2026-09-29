@@ -17,6 +17,7 @@ import { verifyPost } from "../src/core/verifier";
 import { buildSearchQuery } from "../src/core/query";
 
 vi.spyOn(console, "log").mockImplementation(() => {});
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 }); // first in-memory Postgres boot can be slow
 
 const CLIENT = { clientId: "client-123", clientSecret: "secret-456", callbackUrl: "http://127.0.0.1:4000/api/auth/x/callback" };
 const WEB = "http://localhost:3000";

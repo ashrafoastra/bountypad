@@ -226,4 +226,5 @@ create table if not exists platform_x (
 -- ---- listing ----
 alter table tokens add column if not exists featured boolean not null default false;
 alter table tokens add column if not exists hidden boolean not null default false;
-alter table bounties add column if not exists receipt_post_id text
+alter table bounties add column if not exists receipt_post_id text;
+alter table tokens add column if not exists links jsonb not null default '{}'::jsonb

@@ -9,6 +9,17 @@ import { useAuth } from "@/lib/auth";
 import { actionText } from "@/lib/format";
 import { Avatar, Brackets, Crosses, ErrorNote, TokenImage, Verified, XIcon } from "@/components/ui";
 import { ImageUpload } from "@/components/ImageUpload";
+import { SocialIcon } from "@/components/SocialLinks";
+import type { LinkKind } from "@bountypad/shared";
+
+const LINK_FIELDS: [LinkKind, string, string][] = [
+  ["website", "Website", "https://yourcoin.xyz"],
+  ["x", "X", "https://x.com/yourcoin"],
+  ["telegram", "Telegram", "https://t.me/yourcoin"],
+  ["github", "GitHub", "https://github.com/yourcoin"],
+  ["tiktok", "TikTok", "https://tiktok.com/@yourcoin"],
+  ["youtube", "YouTube", "https://youtube.com/@yourcoin"],
+];
 
 const STEPS = ["Coin", "Target", "Challenge", "Launch"];
 const ACTIONS: { id: BountyAction; title: string; desc: string }[] = [
@@ -25,6 +36,7 @@ export default function Launch() {
   const { data: health } = useHealth();
   const auth = useAuth();
   const [step, setStep] = useState(0);
+  const [links, setLinks] = useState<Record<LinkKind, string>>({ website: "", x: "", telegram: "", github: "", tiktok: "", youtube: "" });
   const [f, setF] = useState({ name: "", ticker: "", imageUrl: "", description: "", handle: "", action: "TWEET_CASHTAG" as BountyAction, phrase: "", deadlineDays: RULES.defaultDeadlineDays, firstBuySol: "" });
   const [stage, setStage] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -66,7 +78,8 @@ export default function Launch() {
     try {
       const w = auth.wallet;
       if (!w) { auth.login(); setBusy(false); return; }
-      const body = { name: f.name, ticker: f.ticker, imageUrl: f.imageUrl || null, description: f.description, creatorWallet: w, targetHandle: f.handle, action: f.action, phrase: f.action === "VIDEO_PHRASE" ? f.phrase : null, deadlineDays: f.deadlineDays };
+      const body = { name: f.name, ticker: f.ticker, imageUrl: f.imageUrl || null, description: f.description, creatorWallet: w, targetHandle: f.handle, action: f.action, phrase: f.action === "VIDEO_PHRASE" ? f.phrase : null, deadlineDays: f.deadlineDays,
+        links: Object.fromEntries(Object.entries(links).filter(([, v]) => v.trim())) };
       if (!onchain) {
         const r = await api<{ id: string }>("/api/tokens", { method: "POST", json: body });
         router.push(`/token/${r.id}`);
@@ -92,6 +105,11 @@ export default function Launch() {
   return (
     <div className="grid lg:grid-cols-[1fr_400px] gap-10 lg:gap-16 max-w-6xl mx-auto">
       <div className="min-w-0">
+        {health?.chain === "sim" && (
+          <div className="border border-gold/40 bg-gold/5 px-4 py-3 text-sm mb-8">
+            <span className="text-gold">Simulated chain.</span> <span className="text-mute">Launches here are practice only: nothing is created on Solana and no SOL is spent. Real launches need the Solana setup (README, "Real Solana").</span>
+          </div>
+        )}
         <div className="label">New challenge coin</div>
         <h1 className="display text-[44px] sm:text-[64px] mt-5">Launch a coin</h1>
         <p className="text-mute text-[17px] mt-5 max-w-xl leading-relaxed">Create the coin and its challenge together. The challenge is written on-chain and can never change.</p>
@@ -118,6 +136,19 @@ export default function Launch() {
                 <ImageUpload value={f.imageUrl} onChange={(url) => setF({ ...f, imageUrl: url })} />
               </div>
               <Field label="Description"><textarea className="input" rows={3} maxLength={280} value={f.description} onChange={set("description")} placeholder="What's the story?" /></Field>
+              <div className="flex flex-col gap-2">
+                <span className="label">Links (optional)</span>
+                <div className="grid sm:grid-cols-2 border border-line">
+                  {LINK_FIELDS.map(([k, name, ph], i) => (
+                    <label key={k} className={`flex items-center gap-3 px-3 h-12 border-line ${i % 2 ? "sm:border-l" : ""} ${i > 0 ? "border-t" : ""} ${i === 1 ? "sm:border-t-0" : ""} focus-within:bg-panel-2`}>
+                      <span className="w-6 flex justify-center text-mute"><SocialIcon kind={k} size={15} /></span>
+                      <span className="sr-only">{name}</span>
+                      <input className="flex-1 min-w-0 bg-transparent outline-none text-[15px] placeholder:text-dim" value={links[k]} onChange={(e) => setLinks({ ...links, [k]: e.target.value })} placeholder={ph} />
+                    </label>
+                  ))}
+                </div>
+                <span className="text-sm text-dim">Shown on the coin page and saved in the coin's metadata, so explorers, wallets and trading terminals show them too.</span>
+              </div>
             </>)}
 
             {step === 1 && (<>
@@ -169,6 +200,8 @@ export default function Launch() {
                 <Row k="Challenge" v={actionText(f.action, ticker, f.phrase)} />
                 <Row k="Deadline" v={`${f.deadlineDays} days`} />
                 <div className="h-px bg-line my-1" />
+                {onchain && <Row k="Cost to create" v="≈ 0.027 SOL (Solana rent for the pool, the escrow and the metadata) + your first buy" />}
+                {Object.values(links).some((v) => v.trim()) && <Row k="Links" v={<span className="flex gap-2 justify-end">{LINK_FIELDS.filter(([k]) => links[k].trim()).map(([k]) => <SocialIcon key={k} kind={k} size={14} />)}</span>} />}
                 <Row k="Trading fee" v={health?.feeSchedule ? `${health.feeSchedule.endingFeeBps / 100}% (starts at ${health.feeSchedule.startingFeeBps / 100}% and drops over the first ${Math.round(health.feeSchedule.decaySeconds / 60)} min to stop snipers)` : `${RULES.fees.tradeFeeBps / 100}%`} />
                 <Row k="Of the launchpad share" v={`${RULES.fees.split.potBps / 100}% pot · ${RULES.fees.split.creatorBps / 100}% you · ${RULES.fees.split.platformBps / 100}% platform`} />
               </div>

@@ -1,5 +1,5 @@
 // DRAFT: every endpoint the web app calls, with its input and output (CLAUDE.md §5).
-import type { Bounty, BountyAction, Detection, FeedEvent, Payout, Profile, Token, Trade, VoteChoice, VoteRound, VoteTally } from "./types";
+import type { TokenLinks, Bounty, BountyAction, Detection, FeedEvent, Payout, Profile, Token, Trade, VoteChoice, VoteRound, VoteTally } from "./types";
 
 export interface TokenSummary {
   token: Token;
@@ -60,6 +60,8 @@ export interface LaunchRequest {
   deadlineDays?: number;
   /** CHAIN=solana: SOL the creator buys inside the launch transaction. */
   firstBuySol?: number;
+  /** Optional social links (https). Each must be on its platform's domain. */
+  links?: TokenLinks;
 }
 
 /** GET /api/health: which parts are real in this deployment. */

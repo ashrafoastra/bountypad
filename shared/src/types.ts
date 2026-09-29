@@ -32,6 +32,10 @@ export interface Profile {
   linkedWallet: string | null;
 }
 
+export const LINK_KINDS = ["website", "x", "telegram", "github", "tiktok", "youtube"] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+export type TokenLinks = Partial<Record<LinkKind, string>>;
+
 export interface Token {
   id: string;
   mint: string;
@@ -50,6 +54,8 @@ export interface Token {
   escrow: string | null;
   /** The platform's own coin, pinned above the market. */
   featured: boolean;
+  /** Social links set by the creator at launch (like pump.fun / Axiom). Also in the on-chain metadata JSON. */
+  links: TokenLinks;
   createdAt: string;
 }
 

@@ -106,3 +106,13 @@ Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hn
 | `x:verify` script: dry run of the whole read + verify path on a real post | Verify the logic with real data before launch, without touching the database. |
 | Listing: real launches only; default sort **Trending** = SOL traded in 24h; `featured` pins the platform's own coin above the market; `hidden` removes a coin from every list (admin). `db:reset` for a clean start | Owner: before launch the only coin shown is ours; a hyped coin rises by itself. Resolves the §11 "protocol token" question for listing (mechanics still open). |
 | `shared/` changes: `Token.featured`, `Health.xLogin/platformX`, auth routes | **Needs approval from all 3.** |
+
+## Social links, launch cost (2026-09-29)
+
+| Decision | Why |
+|---|---|
+| Launch form takes optional links: website, X, Telegram, GitHub, TikTok, YouTube (https, each on its own platform's domain) stored in `tokens.links` | Owner: like pump.fun / Axiom. Challenges stay on X. |
+| Metadata JSON (`/api/meta/:mint`, the on-chain `uri`): top-level `website` / `twitter` / `telegram` (pump.fun convention read by explorers, Axiom, DexScreener, wallets) + every link under `extensions` | Links show up wherever the coin is displayed. `PUBLIC_API_URL` must be public in production so they can fetch it. |
+| Real launch cost measured on a local cluster: ≈ 0.027 SOL (pool, escrow and metadata rent + fees) + optional first buy. The launch form states it; the simulated chain shows a clear "practice only" banner | Owner saw a "free" launch on the simulated chain and thought it was real. |
+| Devnet setup needs ~5 SOL on the keeper the first time (320 KB program: rent + temporary deploy buffer) | Previous estimate (3 SOL) was too low. |
+| `shared/` changes: `Token.links`, `LaunchRequest.links`, `LINK_KINDS` | **Needs approval from all 3.** |
