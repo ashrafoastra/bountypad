@@ -193,14 +193,17 @@ Side exits: `REJECTED` (back to `OPEN`), `EXPIRED` (pot burned), `OPTED_OUT` (po
 
 ## 7. Design and motion
 
-- Direction (2026-09-29, from the product owner): **simple, light, content first**, in the school of **OpenSea and Rarible**. No dark/neon look, no decorative 3D, no gimmick effects.
-  - White surfaces, near-black text and primary buttons, light-grey panels, 1px hairline borders, 16px radii.
-  - One brand accent: yellow `#ffc72c`, used sparingly (logo, step numbers, selection). Colour otherwise means status only (green = paid/success, amber = waiting, red = error, blue = links / X).
-  - Inter everywhere; bold, tight headings; no monospace labels in the UI (only for addresses when needed).
-  - The coin image is the hero of every card and page (like an NFT): **every coin must have an image** (uploaded at launch, required).
-  - Motion stays subtle: counters, fades, hover lifts.
-- Logo: black rounded square with the gold coin-target and a white check (`web/public/brand/logo.svg`). Don't imitate other brands' marks.
-- Key screens: home (featured bounty, top bounties table, new challenges shelf, activity), launch form (step by step), token page (image, challenge, pot, trade, status), voting page, public figure profile, claim page (X login).
+- Direction (2026-09-29, from the product owner, replaces the light OpenSea/Rarible direction): **dark, precise, professional, in the school of jtx.com.** No cartoon art, no neon, no gimmicks, no fake data.
+  - Canvas `#101010`, surfaces `#151515` / `#1b1b1a`, hairlines `#262624`, off-white text and primary buttons `#f2f1ee`, muted `#a7a79f`.
+  - **Square** controls (0 radius). Primary = off-white with dark text; secondary = outlined; the main CTA is a split button with a "+" segment.
+  - Layout on a **hairline grid**: framed blocks with "+" crosshairs at the joints, corner brackets around a focused object (coin image, preview).
+  - Type: Geist Sans (big, regular-weight, tight headings) + Geist Mono (uppercase labels, every number).
+  - Colour means something: green = up / paid, red = down / error, amber = waiting, blue = X. Nothing else is coloured.
+  - **Never show fake or demo coins, trending lists or invented numbers.** With zero coins the site shows an honest empty market and real zero stats.
+- Positioning on the site: **"Others pay for nothing. We pay for the action."** (vs fee-routing launchpads like UsePaid; facts only, dated).
+- Token page = trading terminal: header stats (price, 24h, market cap, 24h volume, holders, curve progress), TradingView lightweight-charts candles + volume with Price / MCap / Pot views and timeframes, trade panel, the challenge and its pot, verification, trades.
+- Every coin must have an image (uploaded at launch, required). The coin image is shown with brackets, square.
+- Logo: off-white square with a black target reticle around a check (`web/public/brand/logo.svg`).
 - Mobile-first. Every page must work at phone width.
 
 ## 8. Security and rules

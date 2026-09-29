@@ -168,3 +168,21 @@ create table if not exists burns (
   burned_tokens numeric,
   at timestamptz not null default now()
 )
+;
+
+-- ---- market data (charts) ----
+alter table trades add column if not exists token_amount numeric;
+alter table trades add column if not exists price double precision;
+alter table tokens add column if not exists curve_progress double precision;
+
+-- Every price we know: each trade, plus samples of the on-chain pool (catches trades made elsewhere).
+-- price = SOL per whole token. Candles are built from this.
+create table if not exists price_ticks (
+  id bigserial primary key,
+  token_id text not null references tokens(id),
+  at timestamptz not null default now(),
+  price double precision not null,
+  volume_lamports numeric not null default 0,
+  side text
+);
+create index if not exists price_ticks_token on price_ticks (token_id, at)

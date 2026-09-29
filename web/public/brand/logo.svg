@@ -1,12 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Bounty Pad mark: a coin in a target reticle with a check (from the Higgsfield concept), as a flat app icon -->
-  <rect width="64" height="64" rx="16" fill="#121212"/>
-  <circle cx="32" cy="32" r="15" fill="none" stroke="#ffc72c" stroke-width="5"/>
-  <g stroke="#ffffff" stroke-width="4.5" stroke-linecap="round">
-    <path d="M32 8.5v7"/>
-    <path d="M32 48.5v7"/>
-    <path d="M8.5 32h7"/>
-    <path d="M48.5 32h7"/>
+  <!-- Bounty Pad mark: a target reticle around a verified check (from the Higgsfield concept), drawn square for the grid system -->
+  <rect width="64" height="64" fill="#f2f1ee"/>
+  <circle cx="32" cy="32" r="14.5" fill="none" stroke="#101010" stroke-width="4"/>
+  <g stroke="#101010" stroke-width="4">
+    <path d="M32 7v9"/><path d="M32 48v9"/><path d="M7 32h9"/><path d="M48 32h9"/>
   </g>
-  <path d="M25.5 32.5l4.5 4.5 8.5-9" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M25.5 32.5l4.5 4.5 8.5-9" fill="none" stroke="#101010" stroke-width="4" stroke-linecap="square"/>
 </svg>

@@ -40,18 +40,18 @@ export default function VotePage() {
     <div className="max-w-5xl mx-auto grid lg:grid-cols-[1fr_360px] gap-8">
       <div className="flex flex-col gap-5">
         <Link href={`/token/${summary.token.id}`} className="text-mute text-sm hover:text-ink">← {summary.token.name} ${summary.token.ticker}</Link>
-        <h1 className="text-4xl font-semibold tracking-tight">Did @{summary.target.username} say it?</h1>
+        <h1 className="display text-[40px] sm:text-[56px]">Did @{summary.target.username} say it?</h1>
         <p className="text-mute">The transcript was too close to call automatically, so holders at the moment the video was posted decide.</p>
         <div className="card p-5 border-gold/30">
-          <div className="text-sm font-semibold text-mute">Required phrase</div>
-          <p className="text-2xl font-semibold mt-2 text-gold">“{summary.bounty.phrase}”</p>
+          <div className="label">Required phrase</div>
+          <p className="text-2xl mt-2 text-ink">“{summary.bounty.phrase}”</p>
         </div>
         <PostCard name={summary.target.name} username={summary.target.username} verified={summary.target.verified} text={det.text} at={ago(det.postCreatedAt)}>
-          <div className="mt-4 aspect-video rounded-xl bg-panel border border-line flex items-center justify-center text-mute text-sm">
-            {det.mediaUrl?.startsWith("sim://") ? "Simulated video (no playback in SIM mode)" : det.mediaUrl ? <video src={det.mediaUrl} controls className="w-full h-full rounded-xl" /> : "No video"}
+          <div className="mt-4 aspect-video bg-panel border border-line flex items-center justify-center text-mute text-sm">
+            {det.mediaUrl?.startsWith("sim://") ? "Simulated video (no playback in SIM mode)" : det.mediaUrl ? <video src={det.mediaUrl} controls className="w-full h-full" /> : "No video"}
           </div>
-          <div className="mt-4 rounded-xl bg-panel border border-line p-4">
-            <div className="text-sm font-semibold text-mute mb-2">Transcript · {det.matchScore}% match</div>
+          <div className="mt-4 bg-panel border border-line p-4">
+            <div className="label mb-2">Transcript · {det.matchScore}% match</div>
             <p className="italic">“{det.transcript}”</p>
           </div>
         </PostCard>
@@ -59,18 +59,18 @@ export default function VotePage() {
 
       <div className="flex flex-col gap-4 lg:sticky lg:top-24 h-fit">
         <div className="card p-6">
-          <div className="flex justify-between text-sm font-semibold text-mute mb-5">
+          <div className="flex justify-between label mb-5">
             <span>{open ? "Voting open" : `Closed · ${round.result.toLowerCase().replace("_", " ")}`}</span>
             {open && <span className="text-ink">{countdown(round.closesAt)}</span>}
           </div>
           <VoteBars yes={tally.yesPct} turnout={tally.turnoutPct} />
           {open && !auth.wallet && <button className="btn btn-primary w-full mt-6" onClick={auth.login}>Connect wallet to vote</button>}
-          {open && auth.wallet && d.me && !d.me.eligible && <div className="mt-6 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-mute">{d.me.reason}</div>}
-          {open && auth.wallet && d.me?.voted && <div className="mt-6 rounded-xl border border-green/40 bg-green/10 px-4 py-3 text-sm text-green">You voted {d.me.voted}. Signed, no fee.</div>}
+          {open && auth.wallet && d.me && !d.me.eligible && <div className="mt-6 border border-line bg-panel px-4 py-3 text-sm text-mute">{d.me.reason}</div>}
+          {open && auth.wallet && d.me?.voted && <div className="mt-6 border border-green/40 bg-green/10 px-4 py-3 text-sm text-green">You voted {d.me.voted}. Signed, no fee.</div>}
           {open && auth.wallet && d.me?.eligible && !d.me.voted && (
             <div className="grid grid-cols-2 gap-3 mt-6">
               <button className="btn btn-primary" disabled={busy} onClick={() => vote("YES")}>Yes, said it</button>
-              <button className="btn btn-ghost !border-red/40 text-red" disabled={busy} onClick={() => vote("NO")}>No</button>
+              <button className="btn btn-outline !border-red/40 !text-red" disabled={busy} onClick={() => vote("NO")}>No</button>
             </div>
           )}
           {msg && <div className={`mt-4 text-sm ${msg.ok ? "text-green" : "text-red"}`}>{msg.text}</div>}

@@ -122,6 +122,10 @@ export interface Trade {
   solLamports: string;
   /** Portion of this trade's fee that went to the bounty pot. */
   potLamports: string;
+  /** Tokens bought or sold, base units (6 decimals). null for trades recorded before prices were tracked. */
+  tokenAmount: string | null;
+  /** SOL per whole token right after the trade. */
+  priceSol: number | null;
   createdAt: string;
 }
 

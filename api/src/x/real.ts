@@ -7,13 +7,17 @@ import type { XPost, XProvider, XUser, XMedia, RefType } from "./types";
  * accepts both. Confirm with one live call before launch (docs/decisions.md, Test C).
  */
 export class RealX implements XProvider {
-  constructor(private bearer: string, private style: "tweet" | "post" = "tweet", private base = "https://api.x.com/2", private consumer?: { key: string; secret: string }) {}
+  constructor(private bearer: string, private style: "tweet" | "post" = "tweet", private base = "https://api.x.com/2", private consumer?: { key: string; secret: string; kind?: "api-key" | "oauth2-client" }) {}
 
   /**
    * App-only auth. Uses X_BEARER_TOKEN, or exchanges the API Key + Secret for one
    * (POST /oauth2/token, grant_type=client_credentials: https://docs.x.com/fundamentals/authentication/oauth-2-0/application-only).
-   * Note: the OAuth 2.0 "Client ID / Client Secret" pair is for user login, not for this.
+   * X_CLIENT_ID + X_CLIENT_SECRET (the OAuth 2.0 pair) are tried the same way; X documents that pair
+   * for user login, so if X refuses it, the Bearer Token from the SAME app is the answer (same credits).
    */
+  /** Exchange/validate credentials now (startup check). */
+  async authCheck() { await this.token(); }
+
   private async token(): Promise<string> {
     if (this.bearer) return this.bearer;
     if (!this.consumer) throw new Error("X credentials missing: set X_BEARER_TOKEN (or X_API_KEY + X_API_SECRET)");
@@ -26,7 +30,13 @@ export class RealX implements XProvider {
       body: "grant_type=client_credentials",
     });
     const body: any = await res.json().catch(() => ({}));
-    if (!res.ok || !body.access_token) throw new Error(`X rejected the API Key/Secret (${res.status}). Check them in the developer portal, or use X_BEARER_TOKEN.`);
+    if (!res.ok || !body.access_token) {
+      const what = this.consumer.kind === "oauth2-client" ? "OAuth 2.0 Client ID/Secret" : "API Key/Secret";
+      const hint = this.consumer.kind === "oauth2-client"
+        ? "X only accepts that pair for user login. In the same app (same credits): Keys and tokens → Bearer Token → Generate, then set X_BEARER_TOKEN."
+        : "Check them in the developer portal, or use X_BEARER_TOKEN.";
+      throw new Error(`X rejected the ${what} (${res.status}${body.error ? ` ${body.error}` : ""}). ${hint}`);
+    }
     this.bearer = body.access_token;
     return this.bearer;
   }

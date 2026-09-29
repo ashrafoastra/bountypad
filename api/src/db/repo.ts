@@ -27,7 +27,8 @@ export const mapRound = (r: any): VoteRound => ({
 });
 export const mapTrade = (r: any): Trade => ({
   id: r.id, tokenId: r.token_id, wallet: r.wallet, side: r.side, solLamports: str(r.sol_lamports),
-  potLamports: str(r.pot_lamports), createdAt: iso(r.created_at),
+  potLamports: str(r.pot_lamports), tokenAmount: r.token_amount == null ? null : str(r.token_amount),
+  priceSol: r.price == null ? null : Number(r.price), createdAt: iso(r.created_at),
 });
 export const mapPayout = (r: any): Payout => ({
   id: r.id, bountyId: r.bounty_id, amountLamports: str(r.amount_lamports), wallet: r.wallet, signatures: r.signatures ?? [],

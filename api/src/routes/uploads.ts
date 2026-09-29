@@ -43,4 +43,22 @@ export async function uploadRoutes(app: FastifyInstance, ctx: Ctx) {
     reply.header("Cache-Control", "public, max-age=31536000, immutable");
     return reply.send(bytes);
   });
+
+  // Deterministic abstract mark for a seed (SIM_SEED demo coins only; real coins upload their own image).
+  app.get("/api/placeholder/:seed", async (req, reply) => {
+    const seed = String((req.params as any).seed).replace(/\.svg$/, "").slice(0, 32);
+    reply.header("Content-Type", "image/svg+xml");
+    reply.header("Cache-Control", "public, max-age=86400");
+    return reply.send(placeholderSvg(seed));
+  });
+}
+
+export function placeholderSvg(seed: string) {
+  const h = createHash("sha256").update(seed).digest();
+  const hue = Math.round((h[0] / 255) * 360), hue2 = (hue + 40 + (h[1] % 80)) % 360;
+  const rings = Array.from({ length: 6 }, (_, i) => {
+    const r = 60 + i * 26, a = (h[2 + i] / 255) * 360, len = 60 + (h[8 + i] % 200);
+    return `<circle cx="256" cy="256" r="${r}" fill="none" stroke="hsl(${i % 2 ? hue2 : hue} 70% ${55 + i * 4}%)" stroke-width="${6 + (h[14 + i] % 10)}" stroke-dasharray="${len} ${r * 6.28 - len}" transform="rotate(${a} 256 256)" stroke-linecap="butt"/>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="hsl(${hue} 20% 8%)"/>${rings}<circle cx="256" cy="256" r="28" fill="hsl(${hue} 70% 60%)"/></svg>`;
 }

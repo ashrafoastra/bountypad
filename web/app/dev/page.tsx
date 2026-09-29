@@ -42,10 +42,10 @@ export default function Dev() {
     <div className="flex flex-col gap-8">
       <div>
         <div className="text-gold font-mono text-sm tracking-[.14em] uppercase">Simulation</div>
-        <h1 className="text-4xl font-semibold tracking-tight mt-2">Dev console</h1>
+        <h1 className="text-4xl font-medium tracking-tight mt-2">Dev console</h1>
         <p className="text-mute mt-2">Post as a fictional X account and watch the real watcher, verifier, vote and payout logic react. Waits are compressed: recheck {`~20s`}, vote {`~60s`}, challenge window {`~20s`}.</p>
       </div>
-      {msg && (msg.ok ? <div className="rounded-xl border border-green/40 bg-green/10 text-green px-4 py-3 text-sm">{msg.t}</div> : <ErrorNote msg={msg.t} />)}
+      {msg && (msg.ok ? <div className=" border border-green/40 bg-green/10 text-green px-4 py-3 text-sm">{msg.t}</div> : <ErrorNote msg={msg.t} />)}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Section title="Post on X as…">
@@ -55,7 +55,7 @@ export default function Dev() {
             </select>
             <div className="grid grid-cols-4 gap-2 text-sm">
               {[["text", "Text"], ["quote", "Quote launch"], ["contract", "With contract"], ["video", "Video"]].map(([k, l]) => (
-                <button key={k} onClick={() => setF({ ...f, kind: k })} className={`h-10 rounded-xl border ${f.kind === k ? "border-green/60 bg-green/10" : "border-line text-mute"}`}>{l}</button>
+                <button key={k} onClick={() => setF({ ...f, kind: k })} className={`h-10 border ${f.kind === k ? "border-green/60 bg-green/10" : "border-line text-mute"}`}>{l}</button>
               ))}
             </div>
             {(f.kind === "quote" || f.kind === "contract") && (
@@ -135,9 +135,9 @@ function VoteBots({ t, run }: { t: TokenSummary; run: (l: string, fn: () => Prom
   const round = data?.vote?.round;
   if (!round) return null;
   return (
-    <div className="rounded-xl border border-line p-3 flex flex-wrap items-center gap-2 text-sm">
+    <div className=" border border-line p-3 flex flex-wrap items-center gap-2 text-sm">
       <span>${t.token.ticker} vote</span>
-      <Link className="text-xblue font-semibold hover:underline" href={`/vote/${round.id}`}>open</Link>
+      <Link className="text-xblue font-medium hover:underline" href={`/vote/${round.id}`}>open</Link>
       <span className="ml-auto flex gap-2">
         <button className="btn btn-ghost h-8 px-3 text-xs" onClick={() => run("Bots voted mostly YES", () => api(`/api/dev/votes/${round.id}`, { method: "POST", json: { yesShare: 0.85 } }))}>Bots: YES</button>
         <button className="btn btn-ghost h-8 px-3 text-xs" onClick={() => run("Bots voted mostly NO", () => api(`/api/dev/votes/${round.id}`, { method: "POST", json: { yesShare: 0.2 } }))}>Bots: NO</button>

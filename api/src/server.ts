@@ -21,7 +21,7 @@ async function main() {
   const chain = env.chain === "solana" ? new SolanaChain(env) : null;
   const ctx: Ctx = {
     db,
-    x: mockX ?? new RealX(env.xBearer, env.xFieldStyle, undefined, env.xApiKey ? { key: env.xApiKey, secret: env.xApiSecret } : undefined),
+    x: mockX ?? new RealX(env.xBearer, env.xFieldStyle, undefined, env.xConsumer),
     video: mockX ? new SimVideo(mockX) : new WhisperVideo(env.whisperUrl, env.whisperKey),
     holders: chain ? new OnchainHolders(db, chain) : new DbHolders(db),
     payouts: new SimPayouts(),
@@ -34,7 +34,7 @@ async function main() {
   if (mockX) {
     // The simulated X lives in memory, so a restart must start from a clean database too.
     await db.query(`truncate table votes, vote_rounds, detections, payouts, audit_log, events, trades, holders, fee_claims, burns, pending_launches, bounties, tokens, profiles restart identity cascade`);
-    if (!chain) await seed(ctx);
+    if (!chain && env.simSeed) await seed(ctx);
   }
   if (chain) {
     const cfg = await chain.escrow.config().catch(() => null);
@@ -42,6 +42,13 @@ async function main() {
     const bal = await chain.balance(chain.keeper.publicKey);
     console.log(`Solana ${chain.cluster}: escrow ${cfg ? "ready" : "missing"}, keeper ${chain.keeper.publicKey.toBase58()} (${Number(bal) / 1e9} SOL)`);
     if (bal < 50_000_000n) console.warn("  Keeper balance is low: fund it so it can pay for claims, verifications and payouts.");
+  }
+
+  if (ctx.x instanceof RealX && !env.xBearer) {
+    await ctx.x.authCheck().then(
+      () => console.log(`X: app-only token obtained from the ${env.xConsumer?.kind === "oauth2-client" ? "OAuth 2.0 Client ID/Secret" : "API Key/Secret"}`),
+      (e) => console.warn(`X: ${(e as Error).message}\n   Target lookups and detection will fail until this is fixed.`),
+    );
   }
 
   const app = Fastify({ logger: { level: "warn" } });

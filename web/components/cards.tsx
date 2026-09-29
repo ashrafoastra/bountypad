@@ -1,35 +1,39 @@
 "use client";
 import Link from "next/link";
 import type { FeedEvent, TokenSummary } from "@bountypad/shared";
-import { Avatar, Counter, StatusPill, TokenImage, Verified } from "./ui";
-import { actionText, ago, countdown, fmtSol, fmtUsd, sol } from "@/lib/format";
+import { Avatar, Change, Counter, StatusPill, TokenImage, Verified } from "./ui";
+import { actionText, ago, countdown, fmtCompact, fmtPrice, fmtSol, fmtUsd, sol } from "@/lib/format";
 
-/** Image-first card (the NFT-marketplace pattern): the coin's picture, then the challenge and its pot. */
+/** Image-first card: the coin's picture, then the challenge, market and pot. */
 export function TokenCard({ s, solUsd }: { s: TokenSummary; solUsd: number }) {
-  const { token, bounty, target } = s;
+  const { token, bounty, target, market } = s;
   const pot = sol(bounty.potLamports);
-  const live = ["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(bounty.status);
+  const live = LIVE.includes(bounty.status);
   return (
-    <Link href={`/token/${token.id}`} className="card card-hover overflow-hidden flex flex-col group">
-      <div className="relative aspect-square overflow-hidden bg-panel">
-        <TokenImage name={token.name} ticker={token.ticker} src={token.imageUrl} rounded="" className="w-full h-full transition-transform duration-500 group-hover:scale-[1.04]" textSize="text-3xl" />
+    <Link href={`/token/${token.id}`} className="card card-hover flex flex-col group">
+      <div className="relative aspect-square overflow-hidden border-b border-line">
+        <TokenImage name={token.name} ticker={token.ticker} src={token.imageUrl} className="w-full h-full transition-transform duration-700 group-hover:scale-[1.03]" textSize="text-2xl" />
         <div className="absolute top-3 left-3"><StatusPill status={bounty.status} /></div>
       </div>
       <div className="p-4 flex flex-col gap-3">
         <div className="min-w-0">
-          <div className="font-semibold truncate">{token.name} <span className="text-mute font-medium">${token.ticker}</span></div>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-medium truncate">{token.name}</span>
+            <Change pct={market.change24h} className="text-xs shrink-0" />
+          </div>
           <div className="flex items-center gap-1.5 text-sm text-mute mt-1 min-w-0">
-            <Avatar name={target.name} src={target.avatarUrl} size={18} />
-            <span className="truncate">@{target.username}</span>{target.verified && <Verified size={13} />}
+            <span className="font-mono text-xs">${token.ticker}</span><span className="text-dim">·</span>
+            <span className="truncate">@{target.username}</span>{target.verified && <Verified size={12} />}
           </div>
         </div>
-        <div className="flex items-end justify-between gap-2 pt-3 border-t border-line">
+        <div className="grid grid-cols-2 pt-3 border-t border-line">
           <div>
-            <div className="text-xs text-mute">Pot</div>
-            <div className="font-semibold tabular"><Counter value={pot} format={(v) => v.toFixed(3)} /> SOL</div>
+            <div className="label !text-[10px]">Pot</div>
+            <div className="num text-[15px] mt-1"><Counter value={pot} format={(v) => v.toFixed(3)} /> <span className="text-mute">SOL</span></div>
           </div>
-          <div className="text-right text-xs text-mute">
-            {live ? <>{countdown(bounty.deadline)} left</> : <>≈ {fmtUsd(pot * solUsd)}</>}
+          <div className="text-right">
+            <div className="label !text-[10px]">{live ? "Ends" : "Value"}</div>
+            <div className="num text-[15px] mt-1 text-mute">{live ? countdown(bounty.deadline) : fmtUsd(pot * solUsd)}</div>
           </div>
         </div>
       </div>
@@ -37,34 +41,48 @@ export function TokenCard({ s, solUsd }: { s: TokenSummary; solUsd: number }) {
   );
 }
 
-/** One row of the "Top bounties" table. */
+const LIVE = ["OPEN", "DETECTED_CONFIRMING", "VOTING"];
+export const ROW_GRID = "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[28px_minmax(0,1.5fr)_minmax(0,1.7fr)_110px_76px_96px_118px_150px_76px]";
+
+export function TokenTableHead() {
+  return (
+    <div className={`hidden md:grid ${ROW_GRID} gap-4 px-4 h-10 items-center label !text-[10px] border-b border-line`}>
+      <span>#</span><span>Coin</span><span>Challenge</span><span className="text-right">Price</span><span className="text-right">24h</span><span className="text-right">MCap</span><span className="text-right">Pot</span><span>Status</span><span className="text-right">Ends</span>
+    </div>
+  );
+}
+
+/** One row of the challenges table: coin, challenge, market, pot, status. */
 export function TokenRow({ s, rank, solUsd }: { s: TokenSummary; rank: number; solUsd: number }) {
-  const { token, bounty, target } = s;
+  const { token, bounty, target, market } = s;
   const pot = sol(bounty.potLamports);
   return (
-    <Link href={`/token/${token.id}`} className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[36px_minmax(0,2.2fr)_minmax(0,2fr)_130px_150px_110px] items-center gap-3 md:gap-4 px-3 py-3 rounded-xl hover:bg-panel transition-colors">
-      <span className="text-mute font-semibold text-sm text-center tabular">{rank}</span>
+    <Link href={`/token/${token.id}`} className={`grid ${ROW_GRID} items-center gap-3 md:gap-4 px-4 py-3 border-b border-line hover:bg-panel transition-colors`}>
+      <span className="hidden md:block num text-dim text-sm">{String(rank).padStart(2, "0")}</span>
       <div className="flex items-center gap-3 min-w-0">
-        <TokenImage name={token.name} ticker={token.ticker} src={token.imageUrl} className="w-12 h-12 shrink-0" textSize="text-[11px]" />
+        <TokenImage name={token.name} ticker={token.ticker} src={token.imageUrl} className="w-11 h-11 shrink-0 border border-line" textSize="text-[10px]" />
         <div className="min-w-0">
-          <div className="font-semibold truncate">{token.name}</div>
+          <div className="font-medium truncate">{token.name} <span className="font-mono text-xs text-mute">${token.ticker}</span></div>
           <div className="text-sm text-mute truncate md:hidden">@{target.username} · {actionText(bounty.action, token.ticker, bounty.phrase)}</div>
-          <div className="text-sm text-mute hidden md:block">${token.ticker}</div>
         </div>
       </div>
       <div className="hidden md:flex items-center gap-2.5 min-w-0">
-        <Avatar name={target.name} src={target.avatarUrl} size={28} />
+        <Avatar name={target.name} src={target.avatarUrl} size={26} />
         <div className="min-w-0 text-sm">
-          <div className="font-medium flex items-center gap-1 truncate">@{target.username}{target.verified && <Verified size={13} />}</div>
+          <div className="flex items-center gap-1 truncate">@{target.username}{target.verified && <Verified size={12} />}</div>
           <div className="text-mute truncate">{actionText(bounty.action, token.ticker, bounty.phrase)}</div>
         </div>
       </div>
-      <div className="text-right md:text-left">
-        <div className="font-semibold tabular">{pot.toFixed(3)} SOL</div>
-        <div className="text-xs text-mute tabular">{fmtUsd(pot * solUsd)}</div>
+      <span className="hidden md:block num text-sm text-right">{fmtPrice(market.priceSol)}</span>
+      <Change pct={market.change24h} className="hidden md:block text-sm text-right" />
+      <span className="hidden md:block num text-sm text-right text-mute">{market.marketCapSol === null ? "—" : fmtCompact(market.marketCapSol)}</span>
+      <div className="text-right">
+        <div className="num text-sm">{pot.toFixed(3)} <span className="text-mute">SOL</span></div>
+        <div className="num text-[11px] text-dim md:hidden">{fmtUsd(pot * solUsd)} · <Change pct={market.change24h} /></div>
+        <div className="num text-[11px] text-dim hidden md:block">{fmtUsd(pot * solUsd)}</div>
       </div>
       <div className="hidden md:block"><StatusPill status={bounty.status} /></div>
-      <div className="hidden md:block text-sm text-mute text-right tabular">{["OPEN", "DETECTED_CONFIRMING", "VOTING"].includes(bounty.status) ? countdown(bounty.deadline) : "—"}</div>
+      <div className="hidden md:block num text-sm text-mute text-right">{LIVE.includes(bounty.status) ? countdown(bounty.deadline) : "—"}</div>
     </Link>
   );
 }
@@ -80,17 +98,17 @@ const P = {
   dot: "M12 12h.01",
 };
 const EV: Record<string, { d: string; color: string }> = {
-  TOKEN_LAUNCHED: { d: P.launch, color: "#121212" },
-  POST_DETECTED: { d: P.eye, color: "#1d9bf0" },
-  BOUNTY_VERIFIED: { d: P.check, color: "#16813d" },
-  BOUNTY_REJECTED: { d: P.x, color: "#ff6b7a" },
-  VOTE_OPENED: { d: P.vote, color: "#1d9bf0" },
-  VOTE_CLOSED: { d: P.vote, color: "#8b909a" },
-  PAYOUT_SENT: { d: P.coin, color: "#16813d" },
-  BOUNTY_EXPIRED: { d: P.clock, color: "#8b909a" },
-  TRADE: { d: P.dot, color: "#8b909a" },
-  POT_FUNDED: { d: P.coin, color: "#b26b00" },
-  POT_BURNED: { d: P.clock, color: "#d9304f" },
+  TOKEN_LAUNCHED: { d: P.launch, color: "#f2f1ee" },
+  POST_DETECTED: { d: P.eye, color: "#7eb2ff" },
+  BOUNTY_VERIFIED: { d: P.check, color: "#5fcf8f" },
+  BOUNTY_REJECTED: { d: P.x, color: "#f0676a" },
+  VOTE_OPENED: { d: P.vote, color: "#7eb2ff" },
+  VOTE_CLOSED: { d: P.vote, color: "#a7a79f" },
+  PAYOUT_SENT: { d: P.coin, color: "#5fcf8f" },
+  BOUNTY_EXPIRED: { d: P.clock, color: "#a7a79f" },
+  TRADE: { d: P.dot, color: "#a7a79f" },
+  POT_FUNDED: { d: P.coin, color: "#e2b04a" },
+  POT_BURNED: { d: P.clock, color: "#f0676a" },
 };
 
 export function feedText(e: FeedEvent): string {
@@ -115,12 +133,12 @@ export function feedText(e: FeedEvent): string {
 export function FeedItem({ e }: { e: FeedEvent }) {
   const s = EV[e.type] ?? EV.TRADE;
   const inner = (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-panel transition-colors">
-      <span className="w-8 h-8 shrink-0 rounded-full bg-panel flex items-center justify-center">
-        <svg width="15" height="15" viewBox="0 0 24 24"><path d={s.d} fill="none" stroke={s.color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 hover:bg-panel-2 transition-colors">
+      <span className="w-7 h-7 shrink-0 border border-line-2 flex items-center justify-center">
+        <svg width="13" height="13" viewBox="0 0 24 24"><path d={s.d} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinecap="square" /></svg>
       </span>
       <span className="text-[14px] leading-snug flex-1 min-w-0">{feedText(e)}</span>
-      <span className="text-dim text-xs tabular">{ago(e.at)}</span>
+      <span className="num text-dim text-xs">{ago(e.at)}</span>
     </div>
   );
   return e.tokenId ? <Link href={`/token/${e.tokenId}`}>{inner}</Link> : inner;

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { Health, Stats, TokenDetail, TokenSummary, ProfileDetail } from "@bountypad/shared";
+import { CHART_TIMEFRAMES, type ChartTimeframe, type Health, type Stats, type TokenChart, type TokenDetail, type TokenSummary, type ProfileDetail } from "@bountypad/shared";
+import { MARKET_SQL, candles, mapMarket } from "../services/market";
 import { ESCROW_PROGRAM_ID } from "../chain/escrow";
 import { LAUNCHPAD } from "../chain/launchpad";
 import type { Ctx } from "../app";
@@ -17,15 +18,16 @@ import { identify } from "../auth";
 const SUMMARY_SQL = `
   select row_to_json(t) as t, row_to_json(b) as b, row_to_json(p) as p,
          (select count(*) from holders h where h.token_id=t.id and h.balance > 0)::int as holders,
-         coalesce((select sum(sol_lamports) from trades tr where tr.token_id=t.id), 0)::text as volume
+         coalesce((select sum(sol_lamports) from trades tr where tr.token_id=t.id), 0)::text as volume,
+         ${MARKET_SQL}
     from tokens t join bounties b on b.token_id=t.id join profiles p on p.x_user_id=b.target_x_user_id`;
-
-function toSummary(r: any): TokenSummary {
-  return { token: mapToken(r.t), bounty: mapBounty(r.b), target: mapProfile(r.p), holders: r.holders, volumeLamports: str(r.volume) };
-}
 
 export async function routes(app: FastifyInstance, ctx: Ctx) {
   const { db } = ctx;
+  const toSummary = (r: any): TokenSummary => ({
+    token: mapToken(r.t), bounty: mapBounty(r.b), target: mapProfile(r.p), holders: r.holders, volumeLamports: str(r.volume),
+    market: mapMarket(r, !ctx.chain),
+  });
 
   app.setErrorHandler((err: any, _req, reply) => {
     if (err instanceof LaunchError) return reply.status(err.status).send({ error: err.message });
@@ -81,6 +83,25 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
       potHistory: hist.filter((_, i) => i % step === 0 || i === hist.length - 1).map((h: any) => ({ at: iso(h.created_at), potLamports: str(h.pot) })),
     };
     return detail;
+  });
+
+  // Candles for the coin page: every trade and pool sample, bucketed; plus the pot over time.
+  app.get("/api/tokens/:id/chart", async (req, reply): Promise<TokenChart | void> => {
+    const tf = z.enum(Object.keys(CHART_TIMEFRAMES) as [ChartTimeframe, ...ChartTimeframe[]]).default("5m").parse((req.query as any).tf);
+    const t = (await db.query(`select id from tokens where id=$1 or mint=$1`, [(req.params as any).id]))[0];
+    if (!t) return reply.status(404).send({ error: "not found" });
+    const potRows = ctx.chain
+      ? await db.query(`select extract(epoch from at)::bigint as ts, (sum(pot_lamports) over (order by at))::text as pot from fee_claims where token_id=$1 order by at`, [t.id])
+      : await db.query(`select extract(epoch from created_at)::bigint as ts, (sum(pot_lamports) over (order by created_at, id))::text as pot from trades where token_id=$1 order by created_at, id`, [t.id]);
+    // One point per second at most (the chart library needs strictly increasing times).
+    const pot = new Map<number, number>();
+    for (const r of potRows) pot.set(Number(r.ts), Number(r.pot) / 1e9);
+    reply.header("Cache-Control", "no-store");
+    return {
+      timeframe: tf,
+      candles: await candles(db, t.id, CHART_TIMEFRAMES[tf]),
+      pot: [...pot].map(([time, value]) => ({ time, value })),
+    };
   });
 
   app.post("/api/tokens", async (req) => launch(ctx, req.body));

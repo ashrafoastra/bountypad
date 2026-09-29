@@ -8,6 +8,7 @@ import { upsertProfile } from "../db/repo";
 import { isSolanaAddress } from "../core/solana";
 import { ACTION_CODE } from "../chain/escrow";
 import { emit } from "./events";
+import { recordLaunchPrice } from "./market";
 
 export class LaunchError extends Error { constructor(msg: string, public status = 400) { super(msg); } }
 
@@ -107,6 +108,7 @@ async function record(ctx: Ctx, r: LaunchRecord) {
     );
     await q.query(`insert into audit_log (bounty_id, to_status, reason) values ($1,'OPEN','launched')`, [bountyId]);
   });
+  await recordLaunchPrice(ctx, tokenId, r.mint).catch(() => {});
   await emit(ctx.db, "TOKEN_LAUNCHED", tokenId, bountyId, { ticker: r.ticker, name: r.name, target: r.targetUsername, action: r.action, tx: r.launchTx ?? null });
   return { id: tokenId, bountyId };
 }

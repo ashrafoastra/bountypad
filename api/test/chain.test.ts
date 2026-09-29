@@ -111,6 +111,20 @@ describe.skipIf(!RPC)("on-chain: Meteora pool + bounty escrow", () => {
     await expectFail(send(txOf(ix2), [creator]), /already in use|custom program error: 0x0/);
   }, 60_000);
 
+  it("market read: launch price matches the configured start cap, buys move it up, progress grows", async () => {
+    const m0 = await lp.market(mint);
+    expect(m0).not.toBeNull();
+    // 30 SOL start market cap over 1B tokens (small drift from the fee/rounding of the curve).
+    expect(m0!.price * 1e9).toBeGreaterThan(29);
+    expect(m0!.price * 1e9).toBeLessThan(31);
+    expect(m0!.progress).toBe(0);
+    await trade(mint, "BUY", BigInt(LAMPORTS_PER_SOL) / 2n);
+    const m1 = await lp.market(mint);
+    expect(m1!.price).toBeGreaterThan(m0!.price);
+    expect(m1!.progress!).toBeGreaterThan(0);
+    expect(m1!.migrated).toBe(false);
+  }, 60_000);
+
   it("trades generate fees; the keeper claims and deposits exactly 5/8 into the pot", async () => {
     await trade(mint, "BUY", 2n * BigInt(LAMPORTS_PER_SOL));
     await trade(mint, "BUY", 1n * BigInt(LAMPORTS_PER_SOL));

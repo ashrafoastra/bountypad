@@ -77,3 +77,17 @@ Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hn
 | Images uploaded to the API (`POST /api/uploads`, PNG/JPG/WebP/GIF, 2 MB, checked by magic bytes), stored by sha256 on disk (`UPLOAD_DIR`), served immutable at `/api/files/:name` | Simple and permanent links. On multi-server hosting, move to S3/R2. |
 | X credentials: `X_BEARER_TOKEN`, or `X_API_KEY` + `X_API_SECRET` exchanged for one; `npm run x:check -w api` | The OAuth 2.0 Client ID/Secret can't read posts (they're for user login). |
 | Own logo (coin + target + check on black); the earlier yellow-square letter mark was dropped | Too close to Rarible's identity. |
+
+## Market data, charts, dark direction (2026-09-29)
+
+| Decision | Why |
+|---|---|
+| Design direction replaced: dark, square, hairline grid, Geist (jtx.com school). See CLAUDE.md §7 | Owner: the light version and the cartoon demo logos looked "for kids". |
+| No demo coins by default. `SIM_SEED=true` seeds demo coins (abstract generated images, `/api/placeholder/:seed`) for local UI work only | Nobody has launched yet; a fake market or "trending" list would be dishonest. |
+| Site positioning: "Others pay for nothing. We pay for the action." with a dated, factual comparison to fee-routing launchpads (UsePaid) | Owner's positioning vs UsePaid. |
+| Every price is stored in `price_ticks` (SOL per whole token): each trade we relay, the launch price, and a keeper sample of every pool on the curve every `MARKET_SAMPLE_EVERY_SEC` (default 20s, only when the price moved) | Trades made outside our site (Jupiter, bots) move the pool too; charts must match the chain. |
+| On-chain price = Meteora's pool `sqrtPrice` (SDK `getPriceFromSqrtPrice`, 6 / 9 decimals); curve progress = `quoteReserve / migrationQuoteThreshold` | Read from the pool account, no third-party price feed. |
+| Candles are built in SQL per timeframe (1m…1d); each candle opens at the previous close; volume in SOL | Standard exchange convention; no gaps between candles. |
+| SIM chain uses a constant-product curve with virtual reserves (30 SOL / 1.073B tokens, graduation 85 SOL) and never sells more than a wallet holds | Believable prices and holder balances in the simulation. Real coins use Meteora's curve. |
+| X: `X_CLIENT_ID` / `X_CLIENT_SECRET` are accepted as a last resort for the app-only token exchange; the API checks them at startup and says clearly if X refuses | The owner's credits are on that app; the Bearer Token of the same app is the documented way and uses the same credits. |
+| `shared/` changes: `TokenSummary.market` (`MarketStats`), `Trade.tokenAmount` / `priceSol`, `TokenChart`, `Candle`, `ChartTimeframe`, `GET /api/tokens/:id/chart` | **Needs approval from all 3.** |

@@ -8,6 +8,7 @@ import type { Ctx } from "../app";
 import { isSolanaAddress } from "../core/solana";
 import { prepareLaunch, submitLaunch, tokenMetadata, LaunchError } from "../services/launch";
 import { emit } from "../services/events";
+import { recordTick } from "../services/market";
 
 /** Trades waiting for a wallet signature. In memory: the API runs as a single instance. */
 const pendingTrades = new Map<string, { tokenId: string; wallet: string; side: "BUY" | "SELL"; amountIn: bigint; expectedOut: bigint; hash: string; expires: number }>();
@@ -80,8 +81,14 @@ export async function chainRoutes(app: FastifyInstance, ctx: Ctx) {
     // Recorded for the coin page (chart, feed, holder count). The pot itself is read from the chain.
     const t = (await db.query(`select mint, ticker from tokens where id=$1`, [p.tokenId]))[0];
     const sol = p.side === "BUY" ? p.amountIn : p.expectedOut;
+    const tokens = p.side === "BUY" ? p.expectedOut : p.amountIn;
     const potEstimate = splitTradeFee(sol).pot;
-    await db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports) values ($1,$2,$3,$4,$5,$6)`, [randomUUID(), p.tokenId, p.wallet, p.side, sol.toString(), potEstimate.toString()]);
+    // The price after the trade, read from the pool itself (falls back to the trade's own average price).
+    const m = await ctx.chain.launchpad.market(new PublicKey(t.mint)).catch(() => null);
+    const price = m?.price ?? (tokens > 0n ? Number(sol) / 1e9 / (Number(tokens) / 1e6) : null);
+    await db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price) values ($1,$2,$3,$4,$5,$6,$7,$8)`, [randomUUID(), p.tokenId, p.wallet, p.side, sol.toString(), potEstimate.toString(), tokens.toString(), price]);
+    if (price) await recordTick(db, p.tokenId, price, sol, p.side);
+    if (m) await db.query(`update tokens set curve_progress=$2 where id=$1`, [p.tokenId, m.progress]);
     try {
       const ata = getAssociatedTokenAddressSync(new PublicKey(t.mint), new PublicKey(p.wallet));
       const bal = await ctx.chain.connection.getTokenAccountBalance(ata, "confirmed").then((r) => r.value.amount).catch(() => "0");

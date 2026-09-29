@@ -15,7 +15,8 @@ cp web/.env.example web/.env.local   # first time only
 
 With no `X_BEARER_TOKEN`, the API runs in **SIM MODE**:
 - a mock X with fictional accounts (@novareyes, @jaxkimura, @alinamarsh, @theo_voss, @sofiaokafor, @bytezen, plus @lockedlena (private) and @novaparody (parody) to test rejections),
-- simulated trades that fill pots,
+- simulated trades on a bonding curve (price, candles, pots) when you buy from a coin page or /dev,
+- no demo coins: the site starts empty, like production. `SIM_SEED=true` in `api/.env` seeds a few coins with background trading for UI work,
 - fake payouts with real 2-of-3 ed25519 signatures,
 - compressed timers (recheck 20s, vote 60s, challenge window 20s),
 - an embedded Postgres (PGlite), so no database install. The sim resets on every restart.
@@ -70,7 +71,7 @@ The coin launch, trades, the locked pot and the payout run on Solana with `CHAIN
 - **/dev:** post as the target. The pipeline verifies the post, the escrow verifies it on-chain with 2 of 3 signatures, and after the challenge window the pot is paid on-chain. If the target has no wallet yet, it waits until they log in on **/claim**.
 - To go back to the full simulation: `CHAIN=sim` in `api/.env`.
 
-**Real X:** in developer.x.com → your app → **Keys and tokens**, generate the **Bearer Token** and put it in `api/.env` as `X_BEARER_TOKEN=...` (or put the **API Key** and **API Key Secret** as `X_API_KEY` / `X_API_SECRET`). Then check it with one lookup (about $0.01): `npm run x:check -w api -- elonmusk`. The API is pay-per-use, so the account needs credits in the developer console. Note: the OAuth 2.0 **Client ID / Client Secret** are for "Log in with X", not for reading posts; they can go in Privy (Login methods → X → use your own credentials) if you want the X login screen to show your app's name.
+**Real X:** in developer.x.com → your app → **Keys and tokens**, generate the **Bearer Token** and put it in `api/.env` as `X_BEARER_TOKEN=...` (or put the **API Key** and **API Key Secret** as `X_API_KEY` / `X_API_SECRET`). If you only have the OAuth 2.0 **Client ID / Client Secret**, put them as `X_CLIENT_ID` / `X_CLIENT_SECRET`: the API tries them the same way and `x:check` tells you at once whether X accepts them for reading (X documents that pair for user login; if it's refused, generate the Bearer Token in the SAME app, which uses the same credits). Then check it with one lookup (about $0.01): `npm run x:check -w api -- elonmusk`. The API is pay-per-use, so the account needs credits in the developer console. Note: the OAuth 2.0 **Client ID / Client Secret** are for "Log in with X", not for reading posts; they can go in Privy (Login methods → X → use your own credentials) if you want the X login screen to show your app's name.
 
 **Tests:**
 ```bash

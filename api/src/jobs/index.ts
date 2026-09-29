@@ -2,6 +2,7 @@ import type { Ctx } from "../app";
 import { watch, rechecks, closeVotes, expire } from "../services/pipeline";
 import { releaseDue } from "../services/payouts";
 import { simTradeTick } from "../sim/sim";
+import { samplePools } from "../services/market";
 import { claimFees, syncBounties } from "../services/onchain";
 import { reconcileLaunches } from "../services/launch";
 
@@ -31,8 +32,9 @@ export function startJobs(ctx: Ctx) {
       every("launches", 15, () => reconcileLaunches(ctx)),
       every("keeper-fees", s.keeperEverySec, () => claimFees(ctx)),
       every("chain-sync", s.syncEverySec, () => syncBounties(ctx)),
+      every("market", s.marketEverySec, () => samplePools(ctx)),
     );
-  } else if (ctx.env.sim) {
+  } else if (ctx.env.sim && ctx.env.simSeed) {
     timers.push(every("sim-trades", t.tradeSimEverySec, () => simTradeTick(ctx)));
   }
   return () => timers.forEach(clearInterval);

@@ -3,7 +3,7 @@ import { useParams } from "next/navigation";
 import type { ProfileDetail } from "@bountypad/shared";
 import { useHealth, useLive } from "@/lib/api";
 import { fmtUsd, sol } from "@/lib/format";
-import { Avatar, Counter, Empty, ErrorNote, Section, Skeleton, Verified, XIcon } from "@/components/ui";
+import { Avatar, Counter, Crosses, Empty, ErrorNote, Section, Skeleton, Verified, XIcon } from "@/components/ui";
 import { TokenCard } from "@/components/cards";
 
 export default function ProfilePage() {
@@ -16,16 +16,16 @@ export default function ProfilePage() {
   const p = d.profile;
   return (
     <div className="flex flex-col gap-10">
-      <div className="card p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:items-center">
-        <Avatar name={p.name} src={p.avatarUrl} size={88} />
+      <div className="frame p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:items-center">
+        <Crosses /><Avatar name={p.name} src={p.avatarUrl} size={88} />
         <div>
-          <h1 className="text-3xl font-semibold flex items-center gap-2">{p.name}{p.verified && <Verified size={22} />}</h1>
+          <h1 className="text-[32px] sm:text-[40px] tracking-[-0.03em] flex items-center gap-2">{p.name}{p.verified && <Verified size={22} />}</h1>
           <a href={`https://x.com/${p.username}`} target="_blank" rel="noreferrer" className="text-mute inline-flex items-center gap-1.5 mt-1 hover:text-ink"><XIcon size={14} />@{p.username}</a>
-          {p.optedOut && <div className="mt-3 text-sm text-mute border border-line rounded-full px-3 py-1 w-fit">Opted out of bounties</div>}
+          {p.optedOut && <div className="mt-3 text-sm text-mute border border-line px-3 py-1 w-fit">Opted out of bounties</div>}
         </div>
         <div className="sm:ml-auto grid grid-cols-2 gap-6">
-          <div><div className="text-sm font-semibold text-mute">Waiting for them</div><Counter value={sol(d.lockedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block text-2xl font-bold text-ink mt-1" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.lockedLamports) * solUsd)}</div></div>
-          <div><div className="text-sm font-semibold text-mute">Earned</div><Counter value={sol(d.earnedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block text-2xl font-bold text-green mt-1" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.earnedLamports) * solUsd)}</div></div>
+          <div><div className="label">Waiting for them</div><Counter value={sol(d.lockedLamports)} format={(v) => v.toFixed(3) + " SOL"} className="block num text-2xl text-ink mt-2" /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.lockedLamports) * solUsd)}</div></div>
+          <div><div className="label">Earned</div><Counter value={sol(d.earnedLamports)} format={(v) => v.toFixed(3) + " SOL"} className={`block num text-2xl mt-2 ${BigInt(d.earnedLamports) > 0n ? "text-green" : "text-ink"}`} /><div className="text-dim text-sm">≈ {fmtUsd(sol(d.earnedLamports) * solUsd)}</div></div>
         </div>
       </div>
       <Section title={`Challenges naming @${p.username}`}>
@@ -33,7 +33,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">{d.bounties.map((s) => <TokenCard key={s.token.id} s={s} solUsd={solUsd} />)}</div>
         )}
       </Section>
-      <p className="text-dim text-sm">Is this you? <a href="/claim" className="text-green">Log in with X</a> to claim completed bounties or opt out of all future ones.</p>
+      <p className="text-dim text-sm">Is this you? <a href="/claim" className="text-ink underline">Log in with X</a> to claim completed bounties or opt out of all future ones.</p>
     </div>
   );
 }

@@ -7,8 +7,14 @@ const num = (v: string | undefined, d: number) => (v ? Number(v) : d);
 const xToken = process.env.X_BEARER_TOKEN || "";
 /** Alternative to the bearer token: the app's API Key + Secret ("consumer keys"); the API exchanges them for one. */
 const xApiKey = process.env.X_API_KEY || "", xApiSecret = process.env.X_API_SECRET || "";
+/** Last resort: the OAuth 2.0 Client ID + Secret, tried with the same app-only exchange. */
+const xClientId = process.env.X_CLIENT_ID || "", xClientSecret = process.env.X_CLIENT_SECRET || "";
 /** X: real as soon as X_BEARER_TOKEN (or X_API_KEY + X_API_SECRET) is set. X_MODE=mock forces the simulated X. */
-const xMode: "mock" | "real" = process.env.X_MODE === "mock" || !(xToken || (xApiKey && xApiSecret)) ? "mock" : "real";
+const xMode: "mock" | "real" = process.env.X_MODE === "mock" || !(xToken || (xApiKey && xApiSecret) || (xClientId && xClientSecret)) ? "mock" : "real";
+/** Which app-only credentials the API exchanges for a bearer when X_BEARER_TOKEN isn't set. */
+const xConsumer = xApiKey && xApiSecret
+  ? { key: xApiKey, secret: xApiSecret, kind: "api-key" as const }
+  : xClientId && xClientSecret ? { key: xClientId, secret: xClientSecret, kind: "oauth2-client" as const } : undefined;
 /** Chain: "solana" = real launches/trades/escrow on SOLANA_RPC_URL; "sim" = simulated trades and payouts. */
 const chain: "sim" | "solana" = process.env.CHAIN === "solana" ? "solana" : "sim";
 /** Fully simulated (mock X + sim chain): demo data is seeded and reset on every start. */
@@ -32,11 +38,12 @@ export const env = {
   webOrigin: process.env.WEB_ORIGIN || "http://localhost:3000",
   databaseUrl: process.env.DATABASE_URL || "",
   sim,
+  /** SIM only: seed demo coins with background trading. Off by default: the site starts empty, like production. */
+  simSeed: process.env.SIM_SEED === "true",
   xMode,
   chain,
   xBearer: xToken,
-  xApiKey,
-  xApiSecret,
+  xConsumer,
   /** "tweet" = tweet.fields/referenced_tweets, "post" = post.fields/referenced_posts. Verify with Test C. */
   xFieldStyle: (process.env.X_FIELD_STYLE || "tweet") as "tweet" | "post",
   whisperUrl: process.env.WHISPER_URL || "",
@@ -65,6 +72,8 @@ export const env = {
     minClaimLamports: BigInt(process.env.KEEPER_MIN_CLAIM_LAMPORTS || "1000000"),
     keeperEverySec: num(process.env.KEEPER_EVERY_SEC, 60),
     syncEverySec: num(process.env.CHAIN_SYNC_EVERY_SEC, 15),
+    /** Pool price samples for charts (catches trades made outside our site). */
+    marketEverySec: num(process.env.MARKET_SAMPLE_EVERY_SEC, 20),
   },
   verifier: {
     mainSecret: keys.main,

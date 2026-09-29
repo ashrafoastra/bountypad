@@ -7,6 +7,30 @@ export interface TokenSummary {
   target: Profile;
   holders: number;
   volumeLamports: string;
+  market: MarketStats;
+}
+
+/** Price is in SOL per whole token (6 decimals, 1B supply). null until the first trade/sample. */
+export interface MarketStats {
+  priceSol: number | null;
+  marketCapSol: number | null;
+  /** % change over 24h (vs the launch price when the coin is younger than 24h). */
+  change24h: number | null;
+  volume24hLamports: string;
+  /** 0..1 progress toward graduation on the bonding curve. */
+  curveProgress: number | null;
+}
+
+export type ChartTimeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
+export const CHART_TIMEFRAMES: Record<ChartTimeframe, number> = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400 };
+
+export interface Candle { time: number; open: number; high: number; low: number; close: number; volume: number }
+
+export interface TokenChart {
+  timeframe: ChartTimeframe;
+  candles: Candle[];
+  /** Pot in SOL over time (unix seconds). */
+  pot: { time: number; value: number }[];
 }
 
 export interface TokenDetail extends TokenSummary {
@@ -88,6 +112,7 @@ export interface ApiRoutes {
   "GET /api/stats": { res: Stats };
   "GET /api/tokens": { query: { sort?: "pot" | "new" }; res: TokenSummary[] };
   "GET /api/tokens/:id": { res: TokenDetail };
+  "GET /api/tokens/:id/chart": { query: { tf?: ChartTimeframe }; res: TokenChart };
   "POST /api/tokens": { body: LaunchRequest; res: { id: string } };
   "GET /api/health": { res: Health };
   "POST /api/launch/prepare": { body: LaunchRequest; res: PreparedLaunch };

@@ -51,3 +51,25 @@ export const STATUS: Record<BountyStatus, { label: string; tone: "green" | "gold
   OPTED_OUT: { label: "Opted out", tone: "mute" },
   FROZEN: { label: "Frozen", tone: "red" },
 };
+
+const SUB = "₀₁₂₃₄₅₆₇₈₉";
+/** Tiny prices the way trading terminals show them: 0.0₇2795 = 0.00000002795. */
+export function fmtPrice(v: number | null | undefined) {
+  if (v === null || v === undefined || !Number.isFinite(v) || v <= 0) return "—";
+  if (v >= 1) return v.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  if (v >= 0.001) return v.toFixed(6).replace(/0+$/, "");
+  // zeros between the decimal point and the first significant digit
+  const zeros = Math.floor(-Math.log10(v));
+  const digits = Math.round(v * 10 ** (zeros + 4)).toString().slice(0, 4);
+  return `0.0${String(zeros).split("").map((d) => SUB[Number(d)]).join("")}${digits}`;
+}
+
+/** 1234 -> 1.23K, 1234567 -> 1.23M */
+export function fmtCompact(v: number | null | undefined, digits = 2) {
+  if (v === null || v === undefined || !Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toFixed(digits) + "B";
+  if (a >= 1e6) return (v / 1e6).toFixed(digits) + "M";
+  if (a >= 1e3) return (v / 1e3).toFixed(digits) + "K";
+  return v.toFixed(a >= 100 ? 0 : a >= 1 ? digits : 3);
+}

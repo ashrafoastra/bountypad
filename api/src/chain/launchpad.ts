@@ -3,7 +3,7 @@ import { NATIVE_MINT } from "@solana/spl-token";
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
 import {
   ActivationType, BaseFeeMode, buildCurveWithMarketCap, CollectFeeMode, DynamicBondingCurveClient, MigrationFeeOption,
-  MigrationOption, TokenAuthorityOption, TokenDecimal, TokenType, deriveDbcPoolAddress, getCurrentPoint, swapQuote,
+  MigrationOption, TokenAuthorityOption, TokenDecimal, TokenType, deriveDbcPoolAddress, getCurrentPoint, getPriceFromSqrtPrice, swapQuote,
   type ConfigParameters,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { EscrowClient } from "./escrow";
@@ -144,6 +144,28 @@ export class Launchpad {
     return state ? { address, state } : null;
   }
 
+  private configCache: Awaited<ReturnType<DynamicBondingCurveClient["state"]["getPoolConfig"]>> = null;
+  /** Our DBC config never changes once created, so it is read once. */
+  async config() {
+    if (!this.configCache) this.configCache = await this.dbc.state.getPoolConfig(this.dbcConfig);
+    return this.configCache;
+  }
+
+  /**
+   * Live market read of a pool: spot price (SOL per whole token, from the pool's sqrt price)
+   * and progress toward graduation (quote reserve / migration threshold).
+   */
+  async market(mint: PublicKey) {
+    const p = await this.pool(mint);
+    if (!p) return null;
+    const s = p.state.poolState;
+    const price = Number(getPriceFromSqrtPrice(s.sqrtPrice, LAUNCHPAD.decimals, 9).toString());
+    const cfg = await this.config();
+    const threshold = cfg ? Number(cfg.migrationQuoteThreshold.toString()) : 0;
+    const progress = s.isMigrated ? 1 : threshold > 0 ? Math.min(1, Number(s.quoteReserve.toString()) / threshold) : null;
+    return { price, progress, migrated: !!s.isMigrated };
+  }
+
   /**
    * Claim our partner fees for one pool and put the pot's share into its bounty, in ONE
    * transaction. The claim is capped at the amount we read, so the deposit always matches.
@@ -167,7 +189,7 @@ export class Launchpad {
     const pool = await this.pool(p.mint);
     if (!pool) throw new Error("pool not found");
     if (pool.state.poolState.isMigrated) throw new Error("This coin graduated to Meteora DAMM v2; trade it there");
-    const config = await this.dbc.state.getPoolConfig(this.dbcConfig);
+    const config = await this.config();
     if (!config) throw new Error("launchpad config not found");
     const swapBaseForQuote = p.side === "SELL";
     const currentPoint = await getCurrentPoint(this.connection, config.activationType);

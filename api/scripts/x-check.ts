@@ -7,12 +7,13 @@ import { RealX } from "../src/x/real";
 
 const handle = (process.argv[2] || "x").replace(/^@/, "");
 const bearer = process.env.X_BEARER_TOKEN || "";
-const key = process.env.X_API_KEY || "", secret = process.env.X_API_SECRET || "";
-if (!bearer && !(key && secret)) {
+import { env } from "../src/env";
+if (!bearer && !env.xConsumer) {
   console.error("\n✗ No X credentials in api/.env. Add X_BEARER_TOKEN=... (developer.x.com → your app → Keys and tokens → Bearer Token)\n");
   process.exit(1);
 }
-const x = new RealX(bearer, (process.env.X_FIELD_STYLE as "tweet" | "post") || "tweet", undefined, key ? { key, secret } : undefined);
+const x = new RealX(bearer, (process.env.X_FIELD_STYLE as "tweet" | "post") || "tweet", undefined, env.xConsumer);
+console.log(`Using: ${bearer ? "X_BEARER_TOKEN" : env.xConsumer!.kind === "api-key" ? "X_API_KEY + X_API_SECRET" : "X_CLIENT_ID + X_CLIENT_SECRET"}`);
 x.lookupUser(handle)
   .then((u) => {
     if (!u) { console.log(`\n✓ Credentials work, but @${handle} doesn't exist.\n`); return; }
