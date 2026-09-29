@@ -89,6 +89,13 @@ export async function devRoutes(app: FastifyInstance, ctx: Ctx) {
     [...x.posts.values()].sort((a, b) => (BigInt(b.id) > BigInt(a.id) ? 1 : -1)).slice(0, 30)
       .map((p) => ({ ...p, username: x.userById(p.authorId)?.username, deleted: x.deleted.has(p.id) })));
 
+  /** Set a simulated account's X bio (for the bio challenge). */
+  app.post("/api/dev/bio", async (req) => {
+    const b = z.object({ username: z.string(), text: z.string().max(160) }).parse(req.body);
+    x.setBio(b.username, b.text);
+    return { ok: true };
+  });
+
   app.post("/api/dev/post", async (req) => {
     const b = z.object({
       username: z.string(), text: z.string().default(""),

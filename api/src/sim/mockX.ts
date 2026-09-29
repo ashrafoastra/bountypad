@@ -70,6 +70,14 @@ export class MockX implements XProvider {
 
   async lookupUser(username: string) { return this.userByName(username); }
 
+  bios = new Map<string, string>();
+  setBio(username: string, text: string) {
+    const u = this.userByName(username);
+    if (!u) throw new Error(`unknown sim user @${username}`);
+    this.bios.set(u.id, text);
+  }
+  async getUserBio(userId: string) { return this.userById(userId) ? { text: this.bios.get(userId) ?? "", urls: [] } : null; }
+
   async getPost(id: string) { return this.deleted.has(id) ? null : this.posts.get(id) ?? null; }
 
   async getUserPosts(userId: string, sinceId?: string | null) {

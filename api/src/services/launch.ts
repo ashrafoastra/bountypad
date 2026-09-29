@@ -23,7 +23,7 @@ export const launchSchema = z.object({
   description: z.string().max(280).optional().default(""),
   creatorWallet: z.string().refine(isSolanaAddress, "not a valid Solana address"),
   targetHandle: z.string(),
-  action: z.enum(["TWEET_CASHTAG", "TWEET_CONTRACT", "QUOTE_LAUNCH", "VIDEO_PHRASE"]),
+  action: z.enum(["TWEET_CASHTAG", "TWEET_CONTRACT", "QUOTE_LAUNCH", "VIDEO_PHRASE", "BIO_CONTRACT"]),
   phrase: z.string().trim().max(80).nullish(),
   deadlineDays: z.number().int().min(1).max(365).optional(),
   /** SOL the creator buys in the launch transaction itself (CHAIN=solana). */
@@ -84,6 +84,9 @@ async function validate(ctx: Ctx, input: unknown) {
   const te = tickerError(req.ticker);
   if (te) throw new LaunchError(te);
   const ticker = normalizeTicker(req.ticker);
+  // The escrow program only knows the four post actions; the bio challenge needs light mode (or the simulation).
+  if (req.action === "BIO_CONTRACT" && ctx.chain && ctx.chain.escrowMode !== "pool")
+    throw new LaunchError("The bio challenge needs ESCROW_MODE=pool");
   if (req.action === "VIDEO_PHRASE" && !ctx.mockX && !ctx.env.whisperUrl)
     throw new LaunchError("Video challenges need speech-to-text set up on the server (WHISPER_URL). Pick another challenge.");
   if (req.action === "VIDEO_PHRASE" && !(req.phrase && req.phrase.split(/\s+/).length >= 2))

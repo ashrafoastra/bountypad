@@ -88,6 +88,15 @@ export class RealX implements XProvider {
     return b?.data ? parseUser(b.data) : null;
   }
 
+  /** GET /2/users/:id with description + entities: the bio text and its expanded links. */
+  async getUserBio(id: string): Promise<{ text: string; urls: string[] } | null> {
+    const b = await this.get(`/users/${encodeURIComponent(id)}`, { "user.fields": "description,entities,url" });
+    if (!b?.data) return null;
+    const e = b.data.entities ?? {};
+    const urls = [...(e.description?.urls ?? []), ...(e.url?.urls ?? [])].map((u: any) => String(u.expanded_url ?? u.url ?? ""));
+    return { text: String(b.data.description ?? ""), urls };
+  }
+
   /**
    * Recent search (last 7 days). `startTime` limits reads to posts after the coin launched: with
    * pay-per-use, every post returned costs money, so we never read older ones.

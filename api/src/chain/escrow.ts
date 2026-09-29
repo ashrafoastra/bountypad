@@ -12,7 +12,8 @@ export const ESCROW_PROGRAM_ID = new PublicKey(idlJson.address);
 
 /** Mirrors `Status` in the program. */
 export const OnchainStatus = { OPEN: 0, VERIFIED: 1, FROZEN: 2, PAID: 3, EXPIRED: 4, OPTED_OUT: 5 } as const;
-export const ACTION_CODE = { TWEET_CASHTAG: 0, TWEET_CONTRACT: 1, QUOTE_LAUNCH: 2, VIDEO_PHRASE: 3 } as const;
+/** BIO_CONTRACT is light-mode only (never written to the escrow program); 255 is never sent. */
+export const ACTION_CODE = { TWEET_CASHTAG: 0, TWEET_CONTRACT: 1, QUOTE_LAUNCH: 2, VIDEO_PHRASE: 3, BIO_CONTRACT: 255 } as const;
 
 export interface OnchainBounty {
   address: PublicKey;

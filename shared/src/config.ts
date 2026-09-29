@@ -38,4 +38,5 @@ export const ACTION_LABEL: Record<string, string> = {
   TWEET_CONTRACT: "Post the contract address on X",
   QUOTE_LAUNCH: "Quote the coin's launch post",
   VIDEO_PHRASE: "Say the phrase in a video on X",
+  BIO_CONTRACT: "Put the contract address in their X bio",
 };

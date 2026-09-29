@@ -12,6 +12,7 @@ import { recordTick } from "../services/market";
 
 /** Trades waiting for a wallet signature. In memory: the API runs as a single instance. */
 const pendingTrades = new Map<string, { tokenId: string; wallet: string; side: "BUY" | "SELL"; amountIn: bigint; expectedOut: bigint; hash: string; expires: number }>();
+const pendingClaims = new Map<string, { hash: string; expires: number }>();
 const msgHash = (tx: Transaction) => createHash("sha256").update(tx.serializeMessage()).digest("hex");
 
 export async function chainRoutes(app: FastifyInstance, ctx: Ctx) {
@@ -43,6 +44,44 @@ export async function chainRoutes(app: FastifyInstance, ctx: Ctx) {
       tokenAmount = await ctx.chain.connection.getTokenAccountBalance(ata, "confirmed").then((r) => r.value.amount).catch(() => "0");
     }
     return { lamports, tokenAmount };
+  });
+
+  // The creator's 20% share: waits in the pool, claimed by the creator's own wallet (signs in the browser).
+  app.get("/api/tokens/:id/creator-fees", async (req, reply) => {
+    if (!ctx.chain) return reply.status(400).send({ error: "The API isn't in on-chain mode" });
+    const t = (await db.query(`select mint, creator_wallet from tokens where id=$1 or mint=$1`, [(req.params as any).id]))[0];
+    if (!t) return reply.status(404).send({ error: "coin not found" });
+    const lamports = await ctx.chain.launchpad.creatorFees(new PublicKey(t.mint)).catch(() => null);
+    return { creatorWallet: t.creator_wallet, lamports: (lamports ?? 0n).toString() };
+  });
+
+  app.post("/api/creator/claim/prepare", async (req, reply) => {
+    if (!ctx.chain) return reply.status(400).send({ error: "The API isn't in on-chain mode" });
+    const b = z.object({ tokenId: z.string(), wallet: z.string().refine(isSolanaAddress, "not a valid Solana address") }).parse(req.body);
+    const t = (await db.query(`select mint from tokens where id=$1 or mint=$1`, [b.tokenId]))[0];
+    if (!t) return reply.status(404).send({ error: "coin not found" });
+    let r;
+    try { r = await ctx.chain.launchpad.creatorClaimTx(new PublicKey(t.mint), new PublicKey(b.wallet)); }
+    catch (e) { throw new LaunchError((e as Error).message); }
+    const { blockhash, lastValidBlockHeight } = await ctx.chain.connection.getLatestBlockhash("confirmed");
+    r.tx.recentBlockhash = blockhash;
+    r.tx.lastValidBlockHeight = lastValidBlockHeight;
+    const claimId = randomUUID();
+    pendingClaims.set(claimId, { hash: msgHash(r.tx), expires: Date.now() + 120_000 });
+    for (const [k, v] of pendingClaims) if (v.expires < Date.now()) pendingClaims.delete(k);
+    return { claimId, amountLamports: r.amount.toString(), transaction: r.tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64") };
+  });
+
+  app.post("/api/creator/claim/submit", async (req, reply) => {
+    if (!ctx.chain) return reply.status(400).send({ error: "The API isn't in on-chain mode" });
+    const b = z.object({ claimId: z.string().uuid(), signedTransaction: z.string().max(4000) }).parse(req.body);
+    const p = pendingClaims.get(b.claimId);
+    if (!p) return reply.status(404).send({ error: "Claim expired. Try again." });
+    const bytes = Buffer.from(b.signedTransaction, "base64");
+    if (msgHash(Transaction.from(bytes)) !== p.hash) return reply.status(400).send({ error: "The signed transaction isn't the one we prepared" });
+    pendingClaims.delete(b.claimId);
+    const sig = await ctx.chain.sendSigned(bytes);
+    return { tx: sig, explorer: ctx.chain.explorer(sig) };
   });
 
   app.post("/api/trade/prepare", async (req, reply): Promise<PreparedTrade | void> => {

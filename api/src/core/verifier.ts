@@ -44,6 +44,11 @@ function contentCheck(post: XPost, ctx: VerifyContext): CheckResult {
       const v = post.media.find((m) => m.type === "video");
       return { id: "CONTENT", label: "Has a native video", pass: !!v && !!v.mp4Url };
     }
+    case "BIO_CONTRACT": {
+      // The bio text, or a link in the bio / profile website (X shortens links with t.co).
+      const ok = post.text.includes(ctx.mint) || (post.urls ?? []).some((u) => u.includes(ctx.mint));
+      return { id: "CONTENT", label: "Contract address in their X bio", pass: ok };
+    }
   }
 }
 

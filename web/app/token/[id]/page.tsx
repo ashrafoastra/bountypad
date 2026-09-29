@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { actionText, ago, countdown, fmtCompact, fmtPrice, fmtSol, fmtUsd, short, sol } from "@/lib/format";
 import { VoteBars } from "@/components/VoteBars";
 import { TradePanel } from "@/components/TradePanel";
+import { CreatorFees } from "@/components/CreatorFees";
 import { TokenChart } from "@/components/TokenChart";
 import { SocialLinks } from "@/components/SocialLinks";
 import { explorer } from "@/lib/chain";
@@ -121,6 +122,7 @@ export default function TokenPage() {
             <div className="p-5"><StatusTimeline status={bounty.status} video={video} /></div>
           </div>
 
+          {health?.chain === "solana" && <CreatorFees token={token} />}
           {health?.chain === "solana" ? <TradePanel token={token} health={health} /> : live && (
             <div className="frame p-5">
               <div className="flex items-center justify-between mb-4"><span className="label">Trade</span><span className="label !text-gold">Simulation</span></div>
@@ -186,7 +188,7 @@ export default function TokenPage() {
         {/* ---------- detection + trades ---------- */}
         <div className="flex flex-col gap-6 min-w-0">
           <section>
-            <SectionHead label="Verification" title={det ? "Detected post" : "Watching X"} />
+            <SectionHead label="Verification" title={det ? (det.postId.startsWith("bio-") ? "Found in their bio" : "Detected post") : "Watching X"} />
             {!det ? (
               <div className="frame p-5 flex items-start gap-4">
                 <span className="live-dot mt-2" />
@@ -211,7 +213,7 @@ export default function TokenPage() {
                   </PostCard>
                   <div className="flex flex-col gap-2">
                     <CheckList checks={det.checks} />
-                    {det.status === "CONFIRMING" && <p className="text-mute text-sm mt-1">Rechecking in <span className="num text-ink">{countdown(det.recheckAt)}</span>: the post must still be live, and its latest edit must still pass.</p>}
+                    {det.status === "CONFIRMING" && <p className="text-mute text-sm mt-1">Rechecking in <span className="num text-ink">{countdown(det.recheckAt)}</span>: {det.postId.startsWith("bio-") ? "the contract address must still be in their bio." : "the post must still be live, and its latest edit must still pass."}</p>}
                   </div>
                 </motion.div>
               </AnimatePresence>

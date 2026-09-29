@@ -26,7 +26,7 @@ const ACTIONS: { id: BountyAction; title: string; desc: string }[] = [
   { id: "TWEET_CASHTAG", title: "Post the cashtag", desc: "They post a message on X containing $TICKER." },
   { id: "TWEET_CONTRACT", title: "Post the contract address", desc: "They post the coin's contract address on X." },
   { id: "QUOTE_LAUNCH", title: "Quote the launch post", desc: "They quote the coin's official launch post on X." },
-  { id: "VIDEO_PHRASE", title: "Say it on video", desc: "They post a video on X saying your phrase. Unclear videos go to a holder vote." },
+  { id: "BIO_CONTRACT", title: "Put the contract address in their bio", desc: "They add the coin's contract address to their X bio. Checked again a moment later: it must still be there." },
 ];
 
 type Lookup = { ok: true; profile: Profile } | { ok: false; reason: string } | null;

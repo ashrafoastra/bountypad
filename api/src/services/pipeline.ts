@@ -42,6 +42,12 @@ export async function watch(ctx: Ctx) {
     await refreshHandle(ctx, targetId, group as any[]);
     const videoBounties = group.filter((b: any) => b.action === "VIDEO_PHRASE");
     let timeline: XPost[] | null = null;
+    // Bio challenges: one profile read per target, at most every BIO_CHECK_EVERY_SEC (each read is billed).
+    let bio: XPost | null = null;
+    if (group.some((b: any) => b.action === "BIO_CONTRACT") && Date.now() - (lastBioRead.get(targetId) ?? 0) >= ctx.env.timing.bioCheckEverySec * 1000) {
+      lastBioRead.set(targetId, Date.now());
+      try { bio = await bioPost(ctx, targetId, `bio-${Date.now()}`); } catch (e) { log(`bio read error for ${targetId}:`, (e as Error).message); }
+    }
     if (videoBounties.length) {
       try {
         const seen = videoBounties.map((b: any) => b.last_seen_post_id);
@@ -54,6 +60,12 @@ export async function watch(ctx: Ctx) {
     for (const b of group as any[]) {
       try {
         let candidates: XPost[];
+        if (b.action === "BIO_CONTRACT") {
+          if (!bio) continue;
+          const r = verifyPost(bio, verifyCtx(b));
+          if (r.pass && (await onDetected(ctx, b, bio, r.checks))) log(`contract address found in @${b.target_username}'s bio for $${b.ticker}`);
+          continue; // no post ids to track for a bio
+        }
         if (b.action === "VIDEO_PHRASE") {
           if (!timeline) continue;
           candidates = timeline.filter((p) => !b.last_seen_post_id || BigInt(p.id) > BigInt(b.last_seen_post_id));
@@ -79,6 +91,18 @@ export async function watch(ctx: Ctx) {
       }
     }
   }
+}
+
+const lastBioRead = new Map<string, number>();
+
+/**
+ * The target's bio as a post-shaped record so the same checks apply: author = the account read
+ * by its permanent ID, "posted" now (the address can't have been in a bio before the coin existed).
+ */
+async function bioPost(ctx: Ctx, userId: string, id: string, createdAt = new Date().toISOString()): Promise<XPost | null> {
+  const bio = await ctx.x.getUserBio(userId);
+  if (!bio) return null;
+  return { id, authorId: userId, text: bio.text, createdAt, cashtags: [], urls: bio.urls, referenced: [], editHistoryIds: [id], media: [] };
 }
 
 /**
@@ -144,7 +168,11 @@ export async function rechecks(ctx: Ctx) {
       continue;
     }
     try {
-      const out = await recheck(d.post_id, verifyCtx(b), (id) => ctx.x.getPost(id));
+      // A bio is re-read from the profile: the address must still be there.
+      const fetchPost = String(d.post_id).startsWith("bio-")
+        ? (id: string) => bioPost(ctx, b.target_x_user_id, id, new Date(d.post_created_at ?? d.detected_at).toISOString())
+        : (id: string) => ctx.x.getPost(id);
+      const out = await recheck(d.post_id, verifyCtx(b), fetchPost);
       const prev = (d.checks as any[]).filter((c) => c.id !== "STILL_LIVE");
       const merged = out.kind === "DELETED" ? [...prev, ...out.checks] : out.checks;
       if (out.kind !== "PASS") {

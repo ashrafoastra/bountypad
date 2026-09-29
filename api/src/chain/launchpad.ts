@@ -202,6 +202,26 @@ export class Launchpad {
     return { tx, claimed: claimable, pot: potShare(claimable) };
   }
 
+  /** The coin creator's own share of the trading fees, waiting in the pool (claimed by the creator's wallet). */
+  async creatorFees(mint: PublicKey) {
+    const p = await this.pool(mint);
+    return p ? BigInt(p.state.poolState.creatorQuoteFee.toString()) : null;
+  }
+
+  /** Transaction for the creator's wallet to sign: claim its creator trading fees (SOL). */
+  async creatorClaimTx(mint: PublicKey, creator: PublicKey) {
+    const p = await this.pool(mint);
+    if (!p) throw new Error("pool not found");
+    if (!p.state.poolState.creator.equals(creator)) throw new Error("only the coin's creator wallet can claim its creator fees");
+    const amount = BigInt(p.state.poolState.creatorQuoteFee.toString());
+    if (amount <= 0n) throw new Error("no creator fees to claim yet");
+    const tx = await this.dbc.creator.claimCreatorTradingFee({
+      creator, payer: creator, pool: p.address, maxBaseAmount: new BN(0), maxQuoteAmount: new BN(amount.toString()),
+    });
+    tx.feePayer = creator;
+    return { tx, amount };
+  }
+
   /** Light mode: the pot waiting in the pool right now (our unclaimed partner fees × pot share). */
   async pendingPot(mint: PublicKey) {
     const p = await this.pool(mint);

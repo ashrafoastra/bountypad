@@ -23,6 +23,7 @@ export function buildSearchQuery(q: QueryInput): string | null {
     case "QUOTE_LAUNCH":
       return q.launchPostId ? `quotes_of_tweet_id:${q.launchPostId} ${from}` : null;
     case "VIDEO_PHRASE":
+    case "BIO_CONTRACT": // read from the profile, not search
       return null;
   }
 }

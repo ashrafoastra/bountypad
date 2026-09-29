@@ -44,4 +44,6 @@ export interface XProvider {
   getPost(id: string): Promise<XPost | null>;
   /** A user's own posts, newest first. */
   getUserPosts(userId: string, sinceId?: string | null): Promise<XPost[]>;
+  /** The profile bio (and expanded links in it / the profile website), by permanent ID. null = account gone. */
+  getUserBio(userId: string): Promise<{ text: string; urls: string[] } | null>;
 }

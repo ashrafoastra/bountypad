@@ -113,6 +113,8 @@ export const env = {
     challengeWindowSec: num(process.env.CHALLENGE_WINDOW_SEC, demo ? 20 : 48 * 3600),
     tradeSimEverySec: num(process.env.TRADE_SIM_EVERY_SEC, 2),
     /** A post made just before the deadline still counts if the watcher sees it within this grace. */
+    /** Bio challenges: how often a target's profile is re-read (each read is billed by X). */
+    bioCheckEverySec: num(process.env.BIO_CHECK_EVERY_SEC, demo ? 0 : 300),
     deadlineGraceSec: num(process.env.DEADLINE_GRACE_SEC, demo ? 10 : 15 * 60),
   },
 };

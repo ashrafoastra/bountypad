@@ -78,7 +78,7 @@ export async function postReceipts(ctx: Ctx) {
     const sol = (Number(r.pot) / 1e9).toFixed(3);
     const text = `Verified. @${r.username} completed the $${r.ticker} challenge.\n\n${sol} SOL is waiting for them on Solana. Log in with X to claim: ${ctx.env.webOrigin.replace(/\/$/, "")}/claim`;
     let mark: string;
-    try { mark = (await postAsPlatform(ctx, text, r.post_id)) ?? "skipped"; log(`receipt for $${r.ticker}: ${mark}`); }
+    try { mark = (await postAsPlatform(ctx, text, String(r.post_id).startsWith("bio-") ? null : r.post_id)) ?? "skipped"; log(`receipt for $${r.ticker}: ${mark}`); }
     catch (e) { mark = "failed"; log(`receipt for $${r.ticker} failed:`, (e as Error).message); }
     await ctx.db.query(`update bounties set receipt_post_id=$2 where id=$1`, [r.id, mark]);
   }

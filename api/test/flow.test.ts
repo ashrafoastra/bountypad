@@ -230,6 +230,27 @@ describe("other text actions", () => {
   });
 });
 
+describe("bio bounty", () => {
+  it("pays when the contract address is in the bio, and it must still be there at the recheck", async () => {
+    const { id, bountyId } = await coin({ action: "BIO_CONTRACT", target: "sofiaokafor" });
+    const mint = (await ctx.db.query(`select mint from tokens where id=$1`, [id]))[0].mint;
+    x.setBio("sofiaokafor", "builder. coffee.");
+    await jobs();
+    expect(await status(bountyId)).toBe("OPEN");
+    x.setBio("sofiaokafor", `holding ${mint}`);
+    await jobs();
+    expect(await status(bountyId)).toBe("DETECTED_CONFIRMING");
+    x.setBio("sofiaokafor", "changed my mind");
+    await due(); await jobs();
+    expect(await status(bountyId)).toBe("OPEN"); // removed before the recheck
+    x.setBio("sofiaokafor", `ok fine ${mint}`);
+    await jobs(); await due(); await jobs();
+    expect(await status(bountyId)).toBe("CHALLENGE_WINDOW");
+    const det = (await ctx.db.query(`select post_id, status from detections where bounty_id=$1 and status='VERIFIED'`, [bountyId]))[0];
+    expect(det.post_id.startsWith("bio-")).toBe(true);
+  });
+});
+
 describe("video bounties", () => {
   const video = (transcript: string, durationSec = 20) => x.createPost({ username: "jaxkimura", text: "ok", video: { transcript, durationSec } });
 
