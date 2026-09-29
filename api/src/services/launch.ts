@@ -102,8 +102,9 @@ async function validate(ctx: Ctx, input: unknown) {
         where b.target_x_user_id=$1 and t.ticker=$2 and b.action='TWEET_CASHTAG'
           and b.status in ('OPEN','DETECTED_CONFIRMING','VOTING','VERIFIED','CHALLENGE_WINDOW','FROZEN')
        union all
-       select 1 from pending_launches where expires_at > now() and input->>'targetXUserId'=$1 and input->>'ticker'=$2 and input->>'action'='TWEET_CASHTAG'`,
-      [target.profile.xUserId, ticker],
+       select 1 from pending_launches where expires_at > now() and input->>'targetXUserId'=$1 and input->>'ticker'=$2 and input->>'action'='TWEET_CASHTAG'
+          and input->>'creatorWallet' <> $3`,
+      [target.profile.xUserId, ticker, String((input as any)?.creatorWallet ?? "")],
     );
     if (dup.length) throw new LaunchError(`A live $${ticker} challenge for @${target.profile.username} already exists. Pick another ticker or challenge.`);
   }

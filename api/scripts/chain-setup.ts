@@ -179,11 +179,14 @@ async function main() {
     ESCROW_MODE: light ? "pool" : "program",
   };
   if (mainnet) {
+    // Everything Railway needs goes into ONE file; private keys are never printed on screen.
     const f = path.join(apiDir, ".env.mainnet");
-    writeFileSync(f, Object.entries({ ...values, SOLANA_RPC_URL: rpc }).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
-    ok("mainnet settings saved in api/.env.mainnet (never commit it; api/.chain/mainnet-beta holds the keys)");
-    say(`\n  ---- Paste into Railway → bountypad-api → Variables → Raw Editor (replace the devnet values) ----\n`);
-    for (const [k, v] of Object.entries({ ...values, SOLANA_RPC_URL: rpc, NEXT_PUBLIC_SOLANA_CHAIN: "solana:mainnet", DB_SCHEMA: "mainnet", RECHECK_AFTER_SEC: process.env.RECHECK_AFTER_SEC || "60", MAX_BUY_SOL: process.env.MAX_BUY_SOL || "0.5" })) say(`${k}=${v}`);
+    const railway = { ...values, SOLANA_RPC_URL: rpc, NEXT_PUBLIC_SOLANA_CHAIN: "solana:mainnet", DB_SCHEMA: "mainnet", RECHECK_AFTER_SEC: process.env.RECHECK_AFTER_SEC || "60", MAX_BUY_SOL: process.env.MAX_BUY_SOL || "0.5" };
+    writeFileSync(f, Object.entries(railway).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
+    ok("mainnet settings saved in api/.env.mainnet (never commit it or paste it anywhere but Railway)");
+    say(`\n  Next: copy the settings to your clipboard WITHOUT showing them:\n\n    pbcopy < api/.env.mainnet\n`);
+    say(`  Then Railway → bountypad-api → Variables → Raw Editor → paste (replace the devnet values) → Deploy.`);
+    say(`  Public values, safe to share: keeper ${keeper.publicKey.toBase58()}, DBC_CONFIG ${dbcConfig.publicKey.toBase58()}`);
     say(`\n  Keeper balance: ${(await conn.getBalance(keeper.publicKey)) / LAMPORTS_PER_SOL} SOL (pays claim transactions; keep ≥ ${light ? "0.02" : "0.2"} SOL).\n`);
     return;
   }

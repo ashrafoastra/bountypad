@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors, useSignMessage, useSignTransaction, useWallets } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { API } from "./api";
 
 /**
@@ -46,6 +47,10 @@ const Ctx = createContext<Auth | null>(null);
 const SOLANA_CHAIN = (process.env.NEXT_PUBLIC_SOLANA_CHAIN || "solana:devnet") as "solana:devnet" | "solana:mainnet";
 const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const bytesToB64 = (bytes: Uint8Array) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
+const SOLANA_RPCS = {
+  "solana:mainnet": { rpc: createSolanaRpc("https://api.mainnet-beta.solana.com"), rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.mainnet-beta.solana.com"), blockExplorerUrl: "https://solscan.io" },
+  "solana:devnet": { rpc: createSolanaRpc("https://api.devnet.solana.com"), rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.devnet.solana.com"), blockExplorerUrl: "https://solscan.io/?cluster=devnet" },
+};
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
 
 /** The "Log in with X" session, read from the API (the cookie is httpOnly). */
@@ -101,6 +106,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
         embeddedWallets: { solana: { createOnLogin: "users-without-wallets" } },
         externalWallets: { solana: { connectors: toSolanaWalletConnectors() } },
+        // Privy needs an RPC per network to show and sign transactions (public endpoints: no API key in the browser).
+        solana: { rpcs: SOLANA_RPCS },
       }}
     >
       <PrivyAuth>{children}</PrivyAuth>
