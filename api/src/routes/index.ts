@@ -1,3 +1,4 @@
+import { solUsd } from "../services/market";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { CHART_TIMEFRAMES, type ChartTimeframe, type Health, type Stats, type TokenChart, type TokenDetail, type TokenSummary, type ProfileDetail } from "@bountypad/shared";
@@ -42,7 +43,7 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     ok: true, sim: ctx.env.sim, xMode: ctx.env.xMode, chain: ctx.env.chain,
     cluster: ctx.chain?.cluster ?? null, escrowProgram: ctx.chain && ctx.chain.escrowMode === "program" ? ESCROW_PROGRAM_ID.toBase58() : null,
     escrowMode: ctx.chain?.escrowMode ?? null,
-    dbcConfig: ctx.chain ? ctx.env.solana.dbcConfig : null, devTools: ctx.env.devTools, solUsd: ctx.env.solUsd, privy: !!ctx.privy,
+    dbcConfig: ctx.chain ? ctx.env.solana.dbcConfig : null, devTools: ctx.env.devTools, solUsd: solUsd(ctx.env.solUsd), privy: !!ctx.privy,
     xLogin: !!ctx.xOAuth, platformX: await platformConnected(ctx), videoChallenges: !!ctx.mockX || !!ctx.env.whisperUrl, maxBuySol: ctx.env.maxBuySol,
     feeSchedule: ctx.chain ? { startingFeeBps: LAUNCHPAD.startingFeeBps, endingFeeBps: LAUNCHPAD.endingFeeBps, decaySeconds: LAUNCHPAD.feeDecaySeconds } : null,
   }));
@@ -83,7 +84,10 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
       db.query(`select * from trades where token_id=$1 order by created_at desc limit 30`, [s.token.id]),
       db.query(`select * from vote_rounds where bounty_id=$1 order by opens_at desc limit 1`, [s.bounty.id]),
       db.query(`select * from payouts where bounty_id=$1`, [s.bounty.id]),
-      ctx.chain
+      ctx.chain?.escrowMode === "pool"
+        // Light mode: the pot sampled from the pool's unclaimed fees.
+        ? db.query(`select at as created_at, pot_lamports::text as pot from pot_ticks where token_id=$1 order by at`, [s.token.id])
+        : ctx.chain
         // On-chain: the pot grows when the keeper claims fees into the escrow.
         ? db.query(`select at as created_at, (sum(pot_lamports) over (order by at))::text as pot from fee_claims where token_id=$1 order by at`, [s.token.id])
         : db.query(`select created_at, (sum(pot_lamports) over (order by created_at))::text as pot from trades where token_id=$1 order by created_at`, [s.token.id]),
@@ -105,7 +109,9 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
     const tf = z.enum(Object.keys(CHART_TIMEFRAMES) as [ChartTimeframe, ...ChartTimeframe[]]).default("5m").parse((req.query as any).tf);
     const t = (await db.query(`select id from tokens where id=$1 or mint=$1`, [(req.params as any).id]))[0];
     if (!t) return reply.status(404).send({ error: "not found" });
-    const potRows = ctx.chain
+    const potRows = ctx.chain?.escrowMode === "pool"
+      ? await db.query(`select extract(epoch from at)::bigint as ts, pot_lamports::text as pot from pot_ticks where token_id=$1 order by at`, [t.id])
+      : ctx.chain
       ? await db.query(`select extract(epoch from at)::bigint as ts, (sum(pot_lamports) over (order by at))::text as pot from fee_claims where token_id=$1 order by at`, [t.id])
       : await db.query(`select extract(epoch from created_at)::bigint as ts, (sum(pot_lamports) over (order by created_at, id))::text as pot from trades where token_id=$1 order by created_at, id`, [t.id]);
     // One point per second at most (the chart library needs strictly increasing times).

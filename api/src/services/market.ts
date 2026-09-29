@@ -2,6 +2,9 @@ import type { Candle } from "@bountypad/shared";
 import type { Q } from "../db";
 import type { Ctx } from "../app";
 import { PublicKey } from "@solana/web3.js";
+import { randomUUID } from "node:crypto";
+import { splitTradeFee } from "@bountypad/shared";
+import { emit } from "./events";
 
 /**
  * Market data for charts and token stats.
@@ -124,5 +127,85 @@ export async function samplePools(ctx: Ctx) {
     } catch (e) {
       console.log(new Date().toISOString(), "[market] sample", t.mint, (e as Error).message);
     }
+  }
+}
+
+/**
+ * Job (on-chain): index every swap on our pools, wherever it was made (our site, Jupiter, Axiom,
+ * bots). Reads the pool's new transactions and the change of its two vaults:
+ *   SOL vault up + token vault down = BUY, the reverse = SELL. The trader is the wallet whose
+ * coin balance moved the other way. Feeds volume, holders, trades, the chart and the feed.
+ */
+export async function indexPoolTrades(ctx: Ctx) {
+  const chain = ctx.chain;
+  if (!chain) return;
+  const rows = await ctx.db.query(`select id, mint, ticker, pool, last_indexed_sig from tokens where pool is not null and coalesce(curve_progress, 0) < 1`);
+  for (const t of rows) {
+    try {
+      const pool = await chain.launchpad.pool(new PublicKey(t.mint));
+      if (!pool) continue;
+      const baseVault = pool.state.poolState.baseVault.toBase58();
+      const quoteVault = pool.state.poolState.quoteVault.toBase58();
+      const sigs = await chain.connection.getSignaturesForAddress(new PublicKey(t.pool), t.last_indexed_sig ? { until: t.last_indexed_sig, limit: 100 } : { limit: 100 }, "confirmed");
+      if (!sigs.length) continue;
+      const m = await chain.launchpad.market(new PublicKey(t.mint)).catch(() => null);
+      for (const s of [...sigs].reverse()) {
+        if (s.err) continue;
+        const tx = await chain.connection.getTransaction(s.signature, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+        if (!tx?.meta) continue;
+        const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses }).keySegments().flat().map((k) => k.toBase58());
+        const bal = (list: typeof tx.meta.preTokenBalances, i: number) => list?.find((b) => b.accountIndex === i);
+        const bi = keys.indexOf(baseVault), qi = keys.indexOf(quoteVault);
+        if (bi < 0 || qi < 0) continue;
+        const preB = bal(tx.meta.preTokenBalances, bi), postB = bal(tx.meta.postTokenBalances, bi);
+        const preQ = bal(tx.meta.preTokenBalances, qi), postQ = bal(tx.meta.postTokenBalances, qi);
+        if (!preB || !postB || !preQ || !postQ) continue; // pool creation: the first buy is recorded at launch
+        const dBase = BigInt(postB.uiTokenAmount.amount) - BigInt(preB.uiTokenAmount.amount);
+        const dQuote = BigInt(postQ.uiTokenAmount.amount) - BigInt(preQ.uiTokenAmount.amount);
+        const side = dQuote > 0n && dBase < 0n ? "BUY" : dQuote < 0n && dBase > 0n ? "SELL" : null;
+        if (!side) continue; // fee claims, migrations…
+        const sol = side === "BUY" ? dQuote : -dQuote;
+        const tokens = side === "BUY" ? -dBase : dBase;
+        // The trader: the non-pool account whose coin balance moved opposite to the vault.
+        const moved = (tx.meta.postTokenBalances ?? []).filter((b) => b.mint === t.mint && b.accountIndex !== bi).map((b) => {
+          const pre = BigInt(tx.meta!.preTokenBalances?.find((p) => p.accountIndex === b.accountIndex)?.uiTokenAmount.amount ?? "0");
+          return { owner: b.owner ?? keys[0], balance: BigInt(b.uiTokenAmount.amount), delta: BigInt(b.uiTokenAmount.amount) - pre };
+        });
+        const trader = moved.find((x) => (side === "BUY" ? x.delta > 0n : x.delta < 0n)) ?? { owner: keys[0], balance: null as bigint | null, delta: 0n };
+        const price = tokens > 0n ? Number(sol) / 1e9 / (Number(tokens) / 10 ** TOKEN_DECIMALS) : null;
+        const pot = splitTradeFee(sol).pot;
+        const ins = await ctx.db.query(
+          `insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price, tx_sig, created_at)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9, to_timestamp($10)) on conflict do nothing returning id`,
+          [randomUUID(), t.id, trader.owner, side, sol.toString(), pot.toString(), tokens.toString(), price, s.signature, s.blockTime ?? Date.now() / 1000],
+        );
+        if (trader.balance !== null) {
+          await ctx.db.query(`insert into holders (token_id, wallet, balance) values ($1,$2,$3) on conflict (token_id, wallet) do update set balance=$3`, [t.id, trader.owner, trader.balance.toString()]);
+        }
+        if (!ins.length) continue; // already recorded by our own trade route
+        // Chart: the pool price now (execution prices include the launch fee and would spike the candles).
+        if (m?.price) await ctx.db.query(`insert into price_ticks (token_id, at, price, volume_lamports, side) values ($1, to_timestamp($2), $3, $4, $5)`, [t.id, s.blockTime ?? Date.now() / 1000, m.price, sol.toString(), side]);
+        await emit(ctx.db, "TRADE", t.id, null, { side, solLamports: sol.toString(), potLamports: pot.toString(), wallet: trader.owner, ticker: t.ticker, tx: s.signature });
+      }
+      await ctx.db.query(`update tokens set last_indexed_sig=$2 where id=$1`, [t.id, sigs[0].signature]);
+    } catch (e) {
+      console.log(new Date().toISOString(), "[market] index", t.mint, (e as Error).message.slice(0, 200));
+    }
+  }
+}
+
+/** Live SOL/USD for the dollar figures on the site (falls back to SOL_USD). Refreshed every few minutes. */
+let solUsdLive: { v: number; at: number } | null = null;
+export function solUsd(fallback: number) { return solUsdLive?.v ?? fallback; }
+export async function refreshSolUsd() {
+  const sources: [string, (j: any) => number][] = [
+    ["https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd", (j) => Number(j?.solana?.usd)],
+    ["https://lite-api.jup.ag/price/v3?ids=So11111111111111111111111111111111111111112", (j) => Number(j?.So11111111111111111111111111111111111111112?.usdPrice)],
+  ];
+  for (const [url, pick] of sources) {
+    try {
+      const v = pick(await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json());
+      if (Number.isFinite(v) && v > 1) { solUsdLive = { v, at: Date.now() }; return; }
+    } catch { /* next source */ }
   }
 }

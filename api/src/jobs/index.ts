@@ -2,7 +2,7 @@ import type { Ctx } from "../app";
 import { watch, rechecks, closeVotes, expire } from "../services/pipeline";
 import { releaseDue } from "../services/payouts";
 import { simTradeTick } from "../sim/sim";
-import { samplePools } from "../services/market";
+import { samplePools , indexPoolTrades, refreshSolUsd } from "../services/market";
 import { claimFees, syncBounties } from "../services/onchain";
 import { reconcileLaunches } from "../services/launch";
 import { postPendingLaunches, postReceipts } from "../services/xposter";
@@ -29,12 +29,14 @@ export function startJobs(ctx: Ctx) {
     every("x-posts", 60, async () => { await postPendingLaunches(ctx); await postReceipts(ctx); }),
   ];
   if (ctx.chain) {
+    void refreshSolUsd();
     const s = ctx.env.solana;
     timers.push(
       every("launches", 15, () => reconcileLaunches(ctx)),
       every("keeper-fees", s.keeperEverySec, () => claimFees(ctx)),
       every("chain-sync", s.syncEverySec, () => syncBounties(ctx)),
-      every("market", s.marketEverySec, () => samplePools(ctx)),
+      every("market", s.marketEverySec, async () => { await samplePools(ctx); await indexPoolTrades(ctx); }),
+      every("sol-usd", 300, () => refreshSolUsd()),
     );
   } else if (ctx.env.sim && ctx.env.simSeed) {
     timers.push(every("sim-trades", t.tradeSimEverySec, () => simTradeTick(ctx)));

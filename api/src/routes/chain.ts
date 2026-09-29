@@ -88,7 +88,7 @@ export async function chainRoutes(app: FastifyInstance, ctx: Ctx) {
     // The price after the trade, read from the pool itself (falls back to the trade's own average price).
     const m = await ctx.chain.launchpad.market(new PublicKey(t.mint)).catch(() => null);
     const price = m?.price ?? (tokens > 0n ? Number(sol) / 1e9 / (Number(tokens) / 1e6) : null);
-    await db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price) values ($1,$2,$3,$4,$5,$6,$7,$8)`, [randomUUID(), p.tokenId, p.wallet, p.side, sol.toString(), potEstimate.toString(), tokens.toString(), price]);
+    await db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price, tx_sig) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict do nothing`, [randomUUID(), p.tokenId, p.wallet, p.side, sol.toString(), potEstimate.toString(), tokens.toString(), price, sig]);
     if (price) await recordTick(db, p.tokenId, price, sol, p.side);
     if (m) await db.query(`update tokens set curve_progress=$2 where id=$1`, [p.tokenId, m.progress]);
     try {

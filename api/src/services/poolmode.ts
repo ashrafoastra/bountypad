@@ -72,7 +72,8 @@ export async function syncPools(ctx: Ctx) {
       }
       // PAID / burned: the pot shown is what was paid (or burned) so far; otherwise what waits in the pool.
       const shown = ["PAID", "EXPIRED", "OPTED_OUT"].includes(b.status) ? BigInt(b.paid_so_far) : pending;
-      await ctx.db.query(`update bounties set pot_lamports=$2 where id=$1 and pot_lamports is distinct from $2`, [b.id, shown.toString()]);
+      const changed = await ctx.db.query(`update bounties set pot_lamports=$2 where id=$1 and pot_lamports is distinct from $2 returning id`, [b.id, shown.toString()]);
+      if (changed.length) await ctx.db.query(`insert into pot_ticks (token_id, pot_lamports) values ($1,$2)`, [b.token_id, shown.toString()]);
     } catch (e) {
       log(`sync error $${b.ticker}:`, (e as Error).message.slice(0, 300));
     }

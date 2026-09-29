@@ -236,3 +236,17 @@ create table if not exists uploads (
   bytes bytea not null,
   created_at timestamptz not null default now()
 )
+;
+
+-- ---- on-chain trade indexing (trades made anywhere: our site, Jupiter, Axiom, bots) ----
+alter table trades add column if not exists tx_sig text;
+create unique index if not exists trades_tx_sig on trades (tx_sig) where tx_sig is not null;
+alter table tokens add column if not exists last_indexed_sig text;
+-- Light mode: the live pot (unclaimed fees in the pool) sampled over time, for the POT chart.
+create table if not exists pot_ticks (
+  id bigserial primary key,
+  token_id text not null references tokens(id),
+  at timestamptz not null default now(),
+  pot_lamports numeric not null
+);
+create index if not exists pot_ticks_token on pot_ticks (token_id, at);

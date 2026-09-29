@@ -278,8 +278,8 @@ async function recordFirstBuy(ctx: Ctx, tokenId: string, mint: string, wallet: s
   const m = await chain.launchpad.market(new PublicKey(mint)).catch(() => null);
   const price = m?.price ?? Number(lamports) / 1e9 / (Number(amount) / 1e6);
   const pot = splitTradeFee(lamports).pot;
-  await ctx.db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price) values ($1,$2,$3,'BUY',$4,$5,$6,$7)`,
-    [randomUUID(), tokenId, wallet, lamports.toString(), pot.toString(), amount.toString(), price]);
+  await ctx.db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price, tx_sig) values ($1,$2,$3,'BUY',$4,$5,$6,$7,$8) on conflict do nothing`,
+    [randomUUID(), tokenId, wallet, lamports.toString(), pot.toString(), amount.toString(), price, sig]);
   await ctx.db.query(`insert into holders (token_id, wallet, balance) values ($1,$2,$3) on conflict (token_id, wallet) do update set balance=$3`, [tokenId, wallet, amount.toString()]);
   await recordTick(ctx.db, tokenId, price, lamports, "BUY");
   if (m) await ctx.db.query(`update tokens set curve_progress=$2 where id=$1`, [tokenId, m.progress]);
