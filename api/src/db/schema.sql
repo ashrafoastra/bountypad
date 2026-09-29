@@ -227,4 +227,12 @@ create table if not exists platform_x (
 alter table tokens add column if not exists featured boolean not null default false;
 alter table tokens add column if not exists hidden boolean not null default false;
 alter table bounties add column if not exists receipt_post_id text;
-alter table tokens add column if not exists links jsonb not null default '{}'::jsonb
+alter table tokens add column if not exists links jsonb not null default '{}'::jsonb;
+
+-- Coin images (hosting disks are not persistent).
+create table if not exists uploads (
+  name text primary key,
+  mime text not null,
+  bytes bytea not null,
+  created_at timestamptz not null default now()
+)

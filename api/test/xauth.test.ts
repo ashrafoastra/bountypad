@@ -211,3 +211,17 @@ describe("X reader (real API adapter)", () => {
     expect(lastQuery!.get("start_time")).toBeNull();
   });
 });
+
+describe("uploads", () => {
+  it("stores images in the database and serves them back byte for byte", async () => {
+    const { uploadRoutes } = await import("../src/routes/uploads");
+    await uploadRoutes(app, ctx);
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("rest-of-a-png-file")]);
+    const up = await app.inject({ method: "POST", url: "/api/uploads", payload: { data: "data:image/png;base64," + png.toString("base64") } });
+    expect(up.statusCode).toBe(200);
+    const name = up.json().url.split("/").pop();
+    const got = await app.inject({ method: "GET", url: `/api/files/${name}` });
+    expect(got.headers["content-type"]).toBe("image/png");
+    expect(Buffer.compare(got.rawPayload, png)).toBe(0);
+  });
+});

@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "../app";
 
 /**
- * Coin images. Stored on the API's disk (UPLOAD_DIR, default api/.data/uploads), named by
- * their sha256 so the same image is stored once and links never change. On a multi-server
- * deployment, point UPLOAD_DIR at shared storage or swap this for S3 / R2.
+ * Coin images, stored IN THE DATABASE (table `uploads`), named by their sha256 so the same image
+ * is stored once and links never change. Hosts like Render have no persistent disk by default,
+ * so files on disk would vanish on every deploy. Images uploaded by older versions to
+ * UPLOAD_DIR (api/.data/uploads) are still served from disk.
  */
 const MAX_BYTES = 2 * 1024 * 1024;
 const TYPES: { ext: string; mime: string; magic: (b: Buffer) => boolean }[] = [
@@ -29,15 +30,15 @@ export async function uploadRoutes(app: FastifyInstance, ctx: Ctx) {
     const t = TYPES.find((x) => x.magic(bytes));
     if (!t) return reply.status(415).send({ error: "Use a PNG, JPG, WebP or GIF image" });
     const name = `${createHash("sha256").update(bytes).digest("hex").slice(0, 32)}.${t.ext}`;
-    const file = path.join(dir, name);
-    await stat(file).catch(() => writeFile(file, bytes));
+    await ctx.db.query(`insert into uploads (name, mime, bytes) values ($1,$2,$3) on conflict (name) do nothing`, [name, t.mime, bytes]);
     return { url: `${ctx.env.publicApiUrl}/api/files/${name}` };
   });
 
   app.get("/api/files/:name", async (req, reply) => {
     const name = (req.params as any).name as string;
     if (!/^[a-f0-9]{32}\.(png|jpg|webp|gif)$/.test(name)) return reply.status(404).send({ error: "not found" });
-    const bytes = await readFile(path.join(dir, name)).catch(() => null);
+    const row = (await ctx.db.query(`select bytes from uploads where name=$1`, [name]))[0];
+    const bytes = row ? Buffer.from(row.bytes) : await readFile(path.join(dir, name)).catch(() => null);
     if (!bytes) return reply.status(404).send({ error: "not found" });
     reply.header("Content-Type", TYPES.find((t) => name.endsWith("." + t.ext))!.mime);
     reply.header("Cache-Control", "public, max-age=31536000, immutable");

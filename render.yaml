@@ -1,0 +1,91 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Render dashboard → New → Blueprint → pick this GitHub repo. Secrets marked `sync: false`
+# are asked for once (print yours with: npm run render:env -w api).
+#
+# One public address: the website. It proxies /api/* to the API over Render's private network,
+# so "Log in with X" cookies stay first-party. X callback to register in the X app:
+#   https://<web service URL>/api/auth/x/callback
+
+databases:
+  - name: bountypad-db
+    plan: free            # expires after 30 days on Render; switch to basic-256mb to keep it
+    region: frankfurt
+    databaseName: bountypad
+    user: bountypad
+
+services:
+  - type: web
+    name: bountypad-api
+    runtime: node
+    plan: starter         # always on: the X watcher, fee keeper and payouts run inside the API
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm run start -w api
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase: { name: bountypad-db, property: connectionString }
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: DEV_TOOLS
+        value: "false"
+      # The website's public URL (e.g. https://bountypad-web.onrender.com), twice:
+      - key: WEB_ORIGIN
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      # X
+      - key: X_BEARER_TOKEN
+        sync: false
+      - key: X_CLIENT_ID
+        sync: false
+      - key: X_CLIENT_SECRET
+        sync: false
+      # Solana (values from your Mac's api/.env after `npm run chain:setup -w api`)
+      - key: CHAIN
+        value: solana
+      - key: SOLANA_CLUSTER
+        value: devnet
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: DBC_CONFIG
+        sync: false
+      - key: KEEPER_SECRET_KEY
+        sync: false
+      - key: ESCROW_ADMIN_SECRET_KEY
+        sync: false
+      - key: VERIFIER_SECRET_KEY
+        sync: false
+      - key: VERIFIER_BACKUP_SECRET_KEY
+        sync: false
+      - key: VERIFIER_ALLOWED_SIGNERS
+        sync: false
+      - key: CHALLENGE_WINDOW_SEC
+        sync: false
+      # Privy (wallets)
+      - key: PRIVY_APP_ID
+        sync: false
+      - key: PRIVY_APP_SECRET
+        sync: false
+
+  - type: web
+    name: bountypad-web
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build -w web
+    startCommand: npm run start -w web
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # /api/* is proxied here (private network, no public hop).
+      - key: API_PROXY_TARGET
+        fromService: { type: web, name: bountypad-api, property: hostport }
+      - key: NEXT_PUBLIC_SOLANA_CHAIN
+        value: solana:devnet
+      - key: NEXT_PUBLIC_PRIVY_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false

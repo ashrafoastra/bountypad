@@ -15,7 +15,8 @@
     "x:verify": "tsx scripts/x-verify.ts",
     "x:connect-platform": "tsx scripts/x-connect-platform.ts",
     "admin": "tsx scripts/admin.ts",
-    "db:reset": "tsx scripts/db-reset.ts"
+    "db:reset": "tsx scripts/db-reset.ts",
+    "render:env": "tsx scripts/render-env.ts"
   },
   "dependencies": {
     "@bountypad/shared": "*",

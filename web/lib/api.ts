@@ -2,7 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedEvent, Health } from "@bountypad/shared";
 
-export const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+/**
+ * Where the API is. Empty (default) = same origin: the site proxies /api/* to the API (next.config.mjs).
+ * NEXT_PUBLIC_API_URL can point the browser straight at an API instead (old local setup).
+ */
+export const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 export class ApiError extends Error {}
 
