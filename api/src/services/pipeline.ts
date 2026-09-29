@@ -132,7 +132,11 @@ async function onDetected(ctx: Ctx, b: any, post: XPost, checks: any[]): Promise
 
 /** RECHECK (CLAUDE.md §6.4.5 and §6.5): after the wait, the post must still be live and still pass. */
 export async function rechecks(ctx: Ctx) {
-  const due = await ctx.db.query(`select * from detections where status='CONFIRMING' and recheck_at <= now()`);
+  // Due at the stored time, or earlier if RECHECK_AFTER_SEC was lowered since (applies to waiting posts too).
+  const due = await ctx.db.query(
+    `select * from detections where status='CONFIRMING' and (recheck_at <= now() or detected_at + ($1 || ' seconds')::interval <= now())`,
+    [String(ctx.env.timing.recheckAfterSec)],
+  );
   for (const d of due) {
     const b = await bountyContext(ctx.db, d.bounty_id);
     if (b.status !== "DETECTED_CONFIRMING") {

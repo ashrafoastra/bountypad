@@ -55,6 +55,8 @@ export async function chainRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!t) return reply.status(404).send({ error: "coin not found" });
     const amountIn = BigInt(b.amount);
     if (amountIn <= 0n) throw new LaunchError("Amount must be above zero");
+    if (b.side === "BUY" && ctx.env.maxBuySol > 0 && amountIn > BigInt(Math.round(ctx.env.maxBuySol * 1e9)))
+      throw new LaunchError(`Buys are limited to ${ctx.env.maxBuySol} SOL per transaction for now`);
     const q = await ctx.chain.launchpad.swapTx({ mint: new PublicKey(t.mint), owner: new PublicKey(b.wallet), side: b.side, amountIn, slippageBps: b.slippageBps });
     const { blockhash, lastValidBlockHeight } = await ctx.chain.connection.getLatestBlockhash("confirmed");
     q.tx.recentBlockhash = blockhash;

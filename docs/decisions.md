@@ -116,3 +116,14 @@ Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hn
 | Real launch cost measured on a local cluster: ≈ 0.027 SOL (pool, escrow and metadata rent + fees) + optional first buy. The launch form states it; the simulated chain shows a clear "practice only" banner | Owner saw a "free" launch on the simulated chain and thought it was real. |
 | Devnet setup needs ~5 SOL on the keeper the first time (320 KB program: rent + temporary deploy buffer) | Previous estimate (3 SOL) was too low. |
 | `shared/` changes: `Token.links`, `LaunchRequest.links`, `LINK_KINDS` | **Needs approval from all 3.** |
+
+## Instant claim, mainnet test mode (2026-09-29, product owner)
+
+| Decision | Why |
+|---|---|
+| Payout as soon as the target claims: `RECHECK_AFTER_SEC=60` (the post is re-read one minute after detection) and review window `CHALLENGE_WINDOW_SEC=0` (API + escrow config) | Owner: fees are paid when the tagged person logs in to /claim, not days later. Trade-off accepted: no 24h window against delete-after-claim, no 48h window to freeze a hacked account. Replaces §6.4.5 / §6.6.4 timings; both stay configurable. |
+| Lowering `RECHECK_AFTER_SEC` also applies to posts already waiting | So a config change takes effect immediately. |
+| Mainnet test before audit, with `MAX_BUY_SOL` cap per buy / first buy | Owner's decision to test with real money (CLAUDE.md §8 says audit first: risk accepted by the owner). Cap limits exposure. |
+| `chain:setup -- mainnet --confirm-mainnet` with `MAINNET_RPC_URL`: new keys in `api/.chain/mainnet-beta`, settings in `api/.env.mainnet` (local devnet setup untouched), no airdrops | Separate keys per network; nothing overwritten by accident. |
+| `DB_SCHEMA` (Postgres schema per network) | A mainnet site never lists devnet coins; devnet data kept. |
+| The creator's first buy (inside the launch transaction) is recorded as a trade + holder | It was missing from trades/holders. |

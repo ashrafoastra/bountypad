@@ -84,6 +84,8 @@ export interface Health {
   platformX: boolean;
   /** Video challenges can be verified (speech-to-text configured, or the simulated X). */
   videoChallenges: boolean;
+  /** Max SOL per buy while real-money testing (0 = no cap). */
+  maxBuySol: number;
   /** CHAIN=solana: the launchpad's anti-sniper fee schedule (fee starts high, decays to the base fee). */
   feeSchedule: { startingFeeBps: number; endingFeeBps: number; decaySeconds: number } | null;
 }

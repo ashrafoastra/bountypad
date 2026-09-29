@@ -22,8 +22,13 @@ import { EscrowClient, ESCROW_PROGRAM_ID } from "../src/chain/escrow";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const apiDir = path.resolve(here, "..");
 const repo = path.resolve(apiDir, "..");
-const cluster = (process.argv[2] || process.env.SOLANA_CLUSTER || "devnet") as "devnet" | "localnet";
-const rpc = process.env.SOLANA_RPC_URL && process.argv[2] === undefined ? process.env.SOLANA_RPC_URL : cluster === "localnet" ? "http://127.0.0.1:8899" : "https://api.devnet.solana.com";
+const arg = process.argv[2] === "mainnet" ? "mainnet-beta" : process.argv[2];
+const cluster = (arg || process.env.SOLANA_CLUSTER || "devnet") as "devnet" | "localnet" | "mainnet-beta";
+const mainnet = cluster === "mainnet-beta";
+// Mainnet needs a real RPC (the public one rate-limits everything): MAINNET_RPC_URL, e.g. Helius.
+const rpc = mainnet
+  ? process.env.MAINNET_RPC_URL || ""
+  : process.env.SOLANA_RPC_URL && process.argv[2] === undefined ? process.env.SOLANA_RPC_URL : cluster === "localnet" ? "http://127.0.0.1:8899" : "https://api.devnet.solana.com";
 const demo = !process.env.X_BEARER_TOKEN || process.env.X_MODE === "mock";
 const keyDir = path.join(apiDir, ".chain", cluster);
 const soPath = path.join(repo, "programs", "build", "bounty_escrow.so");
@@ -61,7 +66,11 @@ function solanaCli(): string | null {
 }
 
 async function main() {
-  say(`\nBounty Pad on-chain setup: ${cluster} (${rpc})\n`);
+  if (mainnet) {
+    if (!rpc) throw new Error("Mainnet needs your own RPC: MAINNET_RPC_URL=https://mainnet.helius-rpc.com/?api-key=... npm run chain:setup -w api -- mainnet --confirm-mainnet");
+    if (!process.argv.includes("--confirm-mainnet")) throw new Error("This spends REAL SOL (≈ 2.5 SOL kept as program rent + fees). Add --confirm-mainnet to go ahead.");
+  }
+  say(`\nBounty Pad on-chain setup: ${cluster} (${rpc.replace(/api-key=[^&]+/, "api-key=…")})\n`);
   const conn = new Connection(rpc, "confirmed");
   try { await conn.getVersion(); } catch {
     throw new Error(cluster === "localnet" ? "No local validator on :8899. Start one: programs/scripts/start-local-validator.sh" : `Can't reach ${rpc}`);
@@ -79,7 +88,7 @@ async function main() {
   let bal = await conn.getBalance(keeper.publicKey);
   const programInfo = await conn.getAccountInfo(ESCROW_PROGRAM_ID);
   const need = (programInfo ? 0.2 : 5) * LAMPORTS_PER_SOL;
-  if (bal < need) {
+  if (bal < need && !mainnet) {
     try {
       const sig = await conn.requestAirdrop(keeper.publicKey, (cluster === "localnet" ? 100 : 2) * LAMPORTS_PER_SOL);
       await conn.confirmTransaction(sig, "confirmed");
@@ -88,6 +97,11 @@ async function main() {
   }
   if (bal < need) {
     say(`\n  The keeper needs about ${need / LAMPORTS_PER_SOL} SOL on ${cluster} and has ${bal / LAMPORTS_PER_SOL}.`);
+    if (mainnet) {
+      say(`  Send ${need / LAMPORTS_PER_SOL} SOL from your own wallet (Phantom, exchange…) to the keeper, then run this again:\n\n    ${keeper.publicKey.toBase58()}\n`);
+      say(`  About half comes back automatically after the program upload (the temporary upload buffer is closed).\n`);
+      process.exit(2);
+    }
     say(`  Get free devnet SOL at https://faucet.solana.com (sign in with GitHub for 5 SOL) for this address, then run this again:\n\n    ${keeper.publicKey.toBase58()}\n`);
     process.exit(2);
   }
@@ -139,9 +153,9 @@ async function main() {
   }
   ok(`escrow config: 2 of 3 verifiers, challenge window ${challengeWindowSec}s, deadline grace ${deadlineGraceSec}s`);
 
-  // 5. api/.env
+  // 5. api/.env (devnet/localnet) or api/.env.mainnet (mainnet: your local setup keeps working on devnet)
   const b58 = (k: Keypair) => bs58.encode(k.secretKey);
-  setEnv({
+  const values = {
     CHAIN: "solana",
     SOLANA_CLUSTER: cluster,
     SOLANA_RPC_URL: rpc,
@@ -152,7 +166,17 @@ async function main() {
     VERIFIER_BACKUP_SECRET_KEY: b58(verifierBackup),
     VERIFIER_ALLOWED_SIGNERS: args.verifiers.map((v) => v.toBase58()).join(","),
     CHALLENGE_WINDOW_SEC: String(challengeWindowSec),
-  });
+  };
+  if (mainnet) {
+    const f = path.join(apiDir, ".env.mainnet");
+    writeFileSync(f, Object.entries({ ...values, SOLANA_RPC_URL: rpc }).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
+    ok("mainnet settings saved in api/.env.mainnet (never commit it; api/.chain/mainnet-beta holds the keys)");
+    say(`\n  ---- Paste into Railway → bountypad-api → Variables → Raw Editor (replace the devnet values) ----\n`);
+    for (const [k, v] of Object.entries({ ...values, SOLANA_RPC_URL: rpc, NEXT_PUBLIC_SOLANA_CHAIN: "solana:mainnet", DB_SCHEMA: "mainnet" })) say(`${k}=${v}`);
+    say(`\n  Keeper balance: ${(await conn.getBalance(keeper.publicKey)) / LAMPORTS_PER_SOL} SOL (pays fee claims and payouts; keep ≥ 0.2 SOL).\n`);
+    return;
+  }
+  setEnv(values);
   ok("api/.env updated (CHAIN=solana). Restart the API.");
   say(`\n  To go back to the simulation: set CHAIN=sim in api/.env\n`);
 }

@@ -56,6 +56,8 @@ export const env = {
   } : null,
   /** Sessions from "Log in with X" last this long. */
   sessionDays: num(process.env.SESSION_DAYS, 30),
+  /** Safety cap for real-money testing: max SOL per buy (and per first buy). 0 = no cap. */
+  maxBuySol: num(process.env.MAX_BUY_SOL, 0),
   /** "tweet" = tweet.fields/referenced_tweets, "post" = post.fields/referenced_posts. Verify with Test C. */
   xFieldStyle: (process.env.X_FIELD_STYLE || "tweet") as "tweet" | "post",
   whisperUrl: process.env.WHISPER_URL || "",

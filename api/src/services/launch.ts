@@ -2,13 +2,14 @@ import { randomUUID, randomBytes, createHash } from "node:crypto";
 import bs58 from "bs58";
 import { z } from "zod";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { LINK_KINDS, type LinkKind, type TokenLinks, RULES, normalizeHandle, normalizeTicker, tickerError, handleError, type Profile } from "@bountypad/shared";
+import { LINK_KINDS, type LinkKind, type TokenLinks, RULES, splitTradeFee, normalizeHandle, normalizeTicker, tickerError, handleError, type Profile } from "@bountypad/shared";
 import type { Ctx } from "../app";
 import { upsertProfile } from "../db/repo";
 import { isSolanaAddress } from "../core/solana";
 import { ACTION_CODE } from "../chain/escrow";
 import { emit } from "./events";
-import { recordLaunchPrice } from "./market";
+import { recordLaunchPrice, recordTick } from "./market";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { launchText, platformConnected, postAsPlatform } from "./xposter";
 
 export class LaunchError extends Error { constructor(msg: string, public status = 400) { super(msg); } }
@@ -175,6 +176,8 @@ export async function prepareLaunch(ctx: Ctx, input: unknown) {
   const mint = Keypair.generate();
   const deadline = Math.floor(Date.now() / 1000) + days * 86400;
   const firstBuy = BigInt(Math.round((req.firstBuySol ?? 0) * 1e9));
+  if (ctx.env.maxBuySol > 0 && (req.firstBuySol ?? 0) > ctx.env.maxBuySol)
+    throw new LaunchError(`First buy is limited to ${ctx.env.maxBuySol} SOL per transaction for now`);
   const { tx, pool } = await ctx.chain.launchpad.launchTx({
     creator: new PublicKey(req.creatorWallet), mint, name: req.name, symbol: ticker,
     uri: `${ctx.env.publicApiUrl}/api/meta/${mint.publicKey.toBase58()}`,
@@ -185,7 +188,7 @@ export async function prepareLaunch(ctx: Ctx, input: unknown) {
   const pending = {
     name: req.name, ticker, imageUrl: req.imageUrl ?? null, description: req.description, creatorWallet: req.creatorWallet,
     targetXUserId: target.xUserId, targetUsername: target.username, action: req.action, phrase: req.phrase ?? null,
-    deadline, pool: pool.toBase58(), links: cleanLinks(req.links),
+    deadline, pool: pool.toBase58(), links: cleanLinks(req.links), firstBuyLamports: firstBuy.toString(),
   };
   await ctx.db.query(
     `insert into pending_launches (id, mint, input, message_hash, expires_at) values ($1,$2,$3,$4, now() + interval '3 minutes')`,
@@ -251,7 +254,28 @@ export async function registerLaunch(ctx: Ctx, p: any, sig: string | null) {
     deadline: new Date(i.deadline * 1000), pool: i.pool, launchTx: sig, links: i.links ?? {},
   });
   await ctx.db.query(`delete from pending_launches where id=$1`, [p.id]);
+  // The creator's first buy happened inside the launch transaction: record it like any trade
+  // (holder, trade list, chart), reading the tokens actually received from the chain.
+  const firstBuy = BigInt(i.firstBuyLamports ?? "0");
+  if (firstBuy > 0n) await recordFirstBuy(ctx, out.id, p.mint, i.creatorWallet, firstBuy, sig).catch((e) => console.log("[launch] first buy not recorded:", (e as Error).message));
   return out;
+}
+
+async function recordFirstBuy(ctx: Ctx, tokenId: string, mint: string, wallet: string, lamports: bigint, sig: string | null) {
+  const chain = ctx.chain!;
+  const ata = getAssociatedTokenAddressSync(new PublicKey(mint), new PublicKey(wallet));
+  const amount = BigInt(await chain.connection.getTokenAccountBalance(ata, "confirmed").then((r) => r.value.amount).catch(() => "0"));
+  if (amount <= 0n) return;
+  const m = await chain.launchpad.market(new PublicKey(mint)).catch(() => null);
+  const price = m?.price ?? Number(lamports) / 1e9 / (Number(amount) / 1e6);
+  const pot = splitTradeFee(lamports).pot;
+  await ctx.db.query(`insert into trades (id, token_id, wallet, side, sol_lamports, pot_lamports, token_amount, price) values ($1,$2,$3,'BUY',$4,$5,$6,$7)`,
+    [randomUUID(), tokenId, wallet, lamports.toString(), pot.toString(), amount.toString(), price]);
+  await ctx.db.query(`insert into holders (token_id, wallet, balance) values ($1,$2,$3) on conflict (token_id, wallet) do update set balance=$3`, [tokenId, wallet, amount.toString()]);
+  await recordTick(ctx.db, tokenId, price, lamports, "BUY");
+  if (m) await ctx.db.query(`update tokens set curve_progress=$2 where id=$1`, [tokenId, m.progress]);
+  const t = (await ctx.db.query(`select ticker from tokens where id=$1`, [tokenId]))[0];
+  await emit(ctx.db, "TRADE", tokenId, null, { side: "BUY", solLamports: lamports.toString(), potLamports: pot.toString(), wallet, ticker: t?.ticker, tx: sig });
 }
 
 /** Job: launches whose submit call never came back (closed tab, timeout) but did land on-chain. */

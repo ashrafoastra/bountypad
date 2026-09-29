@@ -23,7 +23,16 @@ export async function createDb(databaseUrl: string, opts: { memory?: boolean } =
   let db: Db;
   if (databaseUrl) {
     const { default: pg } = await import("pg");
-    const pool = new pg.Pool({ connectionString: databaseUrl });
+    // DB_SCHEMA keeps networks apart in one database (e.g. "devnet" vs "mainnet"): every
+    // connection works inside that schema, so a mainnet launch never lists devnet coins.
+    const schemaName = process.env.DB_SCHEMA && /^[a-z_][a-z0-9_]{0,40}$/.test(process.env.DB_SCHEMA) ? process.env.DB_SCHEMA : null;
+    if (schemaName) {
+      const boot = new pg.Client({ connectionString: databaseUrl });
+      await boot.connect();
+      await boot.query(`create schema if not exists ${schemaName}`);
+      await boot.end();
+    }
+    const pool = new pg.Pool({ connectionString: databaseUrl, ...(schemaName ? { options: `-c search_path=${schemaName}` } : {}) });
     db = {
       query: async (sql, params) => (await pool.query(sql, params as any[])).rows,
       tx: async (fn) => {
