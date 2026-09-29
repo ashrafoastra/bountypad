@@ -7,6 +7,7 @@ import type { Ctx } from "../app";
 import { upsertProfile } from "../db/repo";
 import { isSolanaAddress } from "../core/solana";
 import { ACTION_CODE } from "../chain/escrow";
+import { poolMatches } from "./poolmode";
 import { emit } from "./events";
 import { recordLaunchPrice, recordTick } from "./market";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
@@ -235,13 +236,20 @@ export async function submitLaunch(ctx: Ctx, launchId: string, signedBase64: str
 export async function registerLaunch(ctx: Ctx, p: any, sig: string | null) {
   const chain = ctx.chain!;
   const mint = new PublicKey(p.mint);
+  const i = p.input;
+  if (chain.escrowMode === "pool") {
+    // Light mode: the terms live in our database; the chain proves the pool is ours and the creator's.
+    const okPool = await poolMatches(ctx, mint, i.creatorWallet, i.pool);
+    if (okPool === null) return null;
+    if (!okPool) throw new LaunchError("The on-chain pool doesn't match the prepared launch", 409);
+  } else {
   const oc = await chain.escrow.bounty(mint);
   if (!oc) return null;
-  const i = p.input;
   const mismatch =
     oc.targetXUserId !== BigInt(i.targetXUserId) || oc.deadline !== i.deadline || oc.action !== ACTION_CODE[i.action as keyof typeof ACTION_CODE] ||
     Buffer.compare(Buffer.from(oc.phraseHash), Buffer.from(phraseHash(i.phrase))) !== 0 || oc.pool.toBase58() !== i.pool;
   if (mismatch) throw new LaunchError("On-chain bounty terms don't match the prepared launch", 409);
+  }
   const existing = (await ctx.db.query(`select id from tokens where mint=$1`, [p.mint]))[0];
   if (existing) {
     await ctx.db.query(`delete from pending_launches where id=$1`, [p.id]);

@@ -127,3 +127,11 @@ Escrow program `programs/escrow` (Anchor 0.32.1), program id `BPADDJVZ2YAYgBG1hn
 | `chain:setup -- mainnet --confirm-mainnet` with `MAINNET_RPC_URL`: new keys in `api/.chain/mainnet-beta`, settings in `api/.env.mainnet` (local devnet setup untouched), no airdrops | Separate keys per network; nothing overwritten by accident. |
 | `DB_SCHEMA` (Postgres schema per network) | A mainnet site never lists devnet coins; devnet data kept. |
 | The creator's first buy (inside the launch transaction) is recorded as a trade + holder | It was missing from trades/holders. |
+
+## Light mode for mainnet: no escrow program (2026-09-29, product owner)
+
+| Decision | Why |
+|---|---|
+| `ESCROW_MODE=pool` (default for `chain:setup -- mainnet`): no escrow program. The pot is the pot share (5/8) of our unclaimed partner fees inside each coin's Meteora DBC pool. Nothing is claimed before payout; at payout the keeper claims and transfers the pot share to the target in ONE transaction. After PAID, later fees are swept to the same wallet; EXPIRED / OPTED_OUT pots are claimed, used to buy the coin and burned. | Owner: deploying the escrow program costs ≈ 2 SOL of rent (plus a same-size temporary buffer); too expensive to start. Light mode setup ≈ 0.01 SOL, creator pays ≈ 0.027 SOL per launch (measured on localnet), like pump.fun. |
+| Trade-off, stated on the site: bounty terms and the 2-of-3 verifier signatures are not enforced on-chain in light mode; the pot is visible on-chain but the platform keeper is the only key that can claim it (custodial until payout). Site copy switches on `health.escrowMode` so it never claims an escrow program that isn't there. | Honesty (CLAUDE.md §8). `ESCROW_MODE=program` restores the full escrow once it's worth paying for; new coins then use it (existing light-mode coins keep paying from their pools). |
+| A payout to an empty wallet below rent-exempt minimum (0.00089 SOL) is topped up by the keeper. | Otherwise tiny pots could never be sent to a fresh wallet. |

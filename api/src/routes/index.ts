@@ -40,7 +40,8 @@ export async function routes(app: FastifyInstance, ctx: Ctx) {
 
   app.get("/api/health", async (): Promise<Health> => ({
     ok: true, sim: ctx.env.sim, xMode: ctx.env.xMode, chain: ctx.env.chain,
-    cluster: ctx.chain?.cluster ?? null, escrowProgram: ctx.chain ? ESCROW_PROGRAM_ID.toBase58() : null,
+    cluster: ctx.chain?.cluster ?? null, escrowProgram: ctx.chain && ctx.chain.escrowMode === "program" ? ESCROW_PROGRAM_ID.toBase58() : null,
+    escrowMode: ctx.chain?.escrowMode ?? null,
     dbcConfig: ctx.chain ? ctx.env.solana.dbcConfig : null, devTools: ctx.env.devTools, solUsd: ctx.env.solUsd, privy: !!ctx.privy,
     xLogin: !!ctx.xOAuth, platformX: await platformConnected(ctx), videoChallenges: !!ctx.mockX || !!ctx.env.whisperUrl, maxBuySol: ctx.env.maxBuySol,
     feeSchedule: ctx.chain ? { startingFeeBps: LAUNCHPAD.startingFeeBps, endingFeeBps: LAUNCHPAD.endingFeeBps, decaySeconds: LAUNCHPAD.feeDecaySeconds } : null,

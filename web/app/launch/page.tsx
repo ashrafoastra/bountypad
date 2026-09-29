@@ -200,7 +200,7 @@ export default function Launch() {
                 <Row k="Challenge" v={actionText(f.action, ticker, f.phrase)} />
                 <Row k="Deadline" v={`${f.deadlineDays} days`} />
                 <div className="h-px bg-line my-1" />
-                {onchain && <Row k="Cost to create" v="≈ 0.027 SOL (Solana rent for the pool, the escrow and the metadata) + your first buy" />}
+                {onchain && <Row k="Cost to create" v={health?.escrowMode === "pool" ? "≈ 0.025 SOL (Solana rent for the pool and the metadata) + your first buy" : "≈ 0.027 SOL (Solana rent for the pool, the escrow and the metadata) + your first buy"} />}
                 {Object.values(links).some((v) => v.trim()) && <Row k="Links" v={<span className="flex gap-2 justify-end">{LINK_FIELDS.filter(([k]) => links[k].trim()).map(([k]) => <SocialIcon key={k} kind={k} size={14} />)}</span>} />}
                 <Row k="Trading fee" v={health?.feeSchedule ? `${health.feeSchedule.endingFeeBps / 100}% (starts at ${health.feeSchedule.startingFeeBps / 100}% and drops over the first ${Math.round(health.feeSchedule.decaySeconds / 60)} min to stop snipers)` : `${RULES.fees.tradeFeeBps / 100}%`} />
                 <Row k="Of the launchpad share" v={`${RULES.fees.split.potBps / 100}% pot · ${RULES.fees.split.creatorBps / 100}% you · ${RULES.fees.split.platformBps / 100}% platform`} />
@@ -211,9 +211,9 @@ export default function Launch() {
                 </Field>
               )}
               {auth.wallet && <p className="text-mute text-sm">Creator wallet: <span className="font-mono text-ink">{auth.wallet.slice(0, 6)}…{auth.wallet.slice(-6)}</span> (your {RULES.fees.split.creatorBps / 100}% share goes here){onchain && balance !== null && <> · balance <span className="text-ink">{balance.toFixed(3)} SOL</span></>}</p>}
-              {onchain && auth.wallet && balance !== null && balance < 0.05 + firstBuy && (
+              {onchain && auth.wallet && balance !== null && balance < 0.035 + firstBuy && (
                 <div className="border border-gold/30 bg-gold/5 px-4 py-3 text-sm flex flex-wrap items-center gap-3">
-                  <span>You need about {(0.05 + firstBuy).toFixed(2)} SOL on {health?.cluster} to launch (network fees + your first buy).</span>
+                  <span>You need about {(0.035 + firstBuy).toFixed(3)} SOL on {health?.cluster} to launch (network fees + your first buy).</span>
                   {health?.cluster !== "mainnet-beta" && (health?.devTools
                     ? <button className="btn btn-outline h-9 text-sm" onClick={async () => { try { await airdrop(auth.wallet!, 2); setStage(null); setBalance((await balanceOf(auth.wallet!).then((b) => Number(b.lamports) / 1e9))); } catch (e) { setErr((e as Error).message); } }}>Get 2 test SOL</button>
                     : <a className="underline text-gold" href="https://faucet.solana.com" target="_blank" rel="noreferrer">Get free devnet SOL</a>)}
@@ -223,7 +223,7 @@ export default function Launch() {
               {err && <ErrorNote msg={err} />}
               {stage && <div className="flex items-center gap-3 text-sm text-mute"><span className="live-dot" />{stage}</div>}
               <button className="btn btn-primary h-14 text-[16px]" disabled={busy} onClick={submit}>{busy ? "Launching…" : !auth.wallet ? "Connect wallet to launch" : onchain ? `Launch on Solana ${health?.cluster === "mainnet-beta" ? "" : health?.cluster}` : "Launch (simulated)"}</button>
-              {onchain && <p className="text-dim text-xs">One transaction creates the coin on Meteora's bonding curve and writes the challenge into the escrow program{health?.escrowProgram && <> (<a className="underline" target="_blank" rel="noreferrer" href={explorer(health, "account", health.escrowProgram)}>view program</a>)</>}. It can never be changed.</p>}
+              {onchain && <p className="text-dim text-xs">One transaction creates the coin on Meteora's bonding curve{health?.escrowMode === "pool" ? "; the challenge is fixed at launch" : " and writes the challenge into the escrow program"}{health?.escrowProgram && <> (<a className="underline" target="_blank" rel="noreferrer" href={explorer(health, "account", health.escrowProgram)}>view program</a>)</>}. It can never be changed.</p>}
             </>)}
           </motion.div>
         </AnimatePresence>

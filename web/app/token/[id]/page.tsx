@@ -108,7 +108,9 @@ export default function TokenPage() {
                 <span className="label">{paid ? "Paid out" : "Pot"}</span>
                 {token.escrow
                   ? <a target="_blank" rel="noreferrer" href={explorer(health, "account", token.escrow)} className="label hover:!text-ink">{paid ? "Released ↗" : "Escrow ↗"}</a>
-                  : <span className="label">{paid ? "Released" : "Locked · sim"}</span>}
+                  : token.pool
+                    ? <a target="_blank" rel="noreferrer" href={explorer(health, "account", token.pool)} className="label hover:!text-ink">{paid ? "Paid ↗" : "In the pool ↗"}</a>
+                    : <span className="label">{paid ? "Released" : "Locked · sim"}</span>}
               </div>
               <div className="flex items-baseline gap-2 mt-3">
                 <Counter value={pot} format={(v) => v.toFixed(4)} className="num text-[40px] leading-none" />

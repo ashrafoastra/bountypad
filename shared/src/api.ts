@@ -74,6 +74,8 @@ export interface Health {
   /** CHAIN=solana only. */
   cluster: string | null;
   escrowProgram: string | null;
+  /** "program" = escrow program; "pool" = light mode, the pot waits in the coin's Meteora pool. */
+  escrowMode: "program" | "pool" | null;
   dbcConfig: string | null;
   devTools: boolean;
   solUsd: number;

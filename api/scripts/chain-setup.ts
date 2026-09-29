@@ -3,6 +3,10 @@
  *
  *   npm run chain:setup -w api                 # devnet
  *   npm run chain:setup -w api -- localnet     # a local validator on :8899
+ *   npm run chain:setup -w api -- mainnet --confirm-mainnet   # light mode, ≈ 0.02 SOL
+ *
+ * Light mode (ESCROW_MODE=pool, the default on mainnet, or --light): no escrow program. Only our
+ * Meteora DBC config is created (≈ 0.01 SOL of rent); pots wait in each coin's pool.
  *
  * Creates (once, then reuses) the platform keys in api/.chain/<cluster>/, deploys the escrow
  * program if it isn't there, creates our Meteora DBC launchpad config and the escrow config,
@@ -29,6 +33,8 @@ const mainnet = cluster === "mainnet-beta";
 const rpc = mainnet
   ? process.env.MAINNET_RPC_URL || ""
   : process.env.SOLANA_RPC_URL && process.argv[2] === undefined ? process.env.SOLANA_RPC_URL : cluster === "localnet" ? "http://127.0.0.1:8899" : "https://api.devnet.solana.com";
+/** Light mode: no escrow program to deploy (mainnet default; ESCROW_MODE=program forces the program). */
+const light = process.argv.includes("--light") || process.env.ESCROW_MODE === "pool" || (mainnet && process.env.ESCROW_MODE !== "program");
 const demo = !process.env.X_BEARER_TOKEN || process.env.X_MODE === "mock";
 const keyDir = path.join(apiDir, ".chain", cluster);
 const soPath = path.join(repo, "programs", "build", "bounty_escrow.so");
@@ -68,9 +74,9 @@ function solanaCli(): string | null {
 async function main() {
   if (mainnet) {
     if (!rpc) throw new Error("Mainnet needs your own RPC: MAINNET_RPC_URL=https://mainnet.helius-rpc.com/?api-key=... npm run chain:setup -w api -- mainnet --confirm-mainnet");
-    if (!process.argv.includes("--confirm-mainnet")) throw new Error("This spends REAL SOL (≈ 2.5 SOL kept as program rent + fees). Add --confirm-mainnet to go ahead.");
+    if (!process.argv.includes("--confirm-mainnet")) throw new Error(`This spends REAL SOL (${light ? "≈ 0.01 SOL of rent for the launchpad config" : "≈ 2.5 SOL kept as program rent + fees"}). Add --confirm-mainnet to go ahead.`);
   }
-  say(`\nBounty Pad on-chain setup: ${cluster} (${rpc.replace(/api-key=[^&]+/, "api-key=…")})\n`);
+  say(`\nBounty Pad on-chain setup: ${cluster}${light ? ", light mode (no escrow program)" : ""} (${rpc.replace(/api-key=[^&]+/, "api-key=…")})\n`);
   const conn = new Connection(rpc, "confirmed");
   try { await conn.getVersion(); } catch {
     throw new Error(cluster === "localnet" ? "No local validator on :8899. Start one: programs/scripts/start-local-validator.sh" : `Can't reach ${rpc}`);
@@ -87,7 +93,7 @@ async function main() {
   //    buffer of the same size (refunded after the deploy), so about 5 SOL the first time.
   let bal = await conn.getBalance(keeper.publicKey);
   const programInfo = await conn.getAccountInfo(ESCROW_PROGRAM_ID);
-  const need = (programInfo ? 0.2 : 5) * LAMPORTS_PER_SOL;
+  const need = (light ? 0.03 : programInfo ? 0.2 : 5) * LAMPORTS_PER_SOL;
   if (bal < need && !mainnet) {
     try {
       const sig = await conn.requestAirdrop(keeper.publicKey, (cluster === "localnet" ? 100 : 2) * LAMPORTS_PER_SOL);
@@ -99,7 +105,8 @@ async function main() {
     say(`\n  The keeper needs about ${need / LAMPORTS_PER_SOL} SOL on ${cluster} and has ${bal / LAMPORTS_PER_SOL}.`);
     if (mainnet) {
       say(`  Send ${need / LAMPORTS_PER_SOL} SOL from your own wallet (Phantom, exchange…) to the keeper, then run this again:\n\n    ${keeper.publicKey.toBase58()}\n`);
-      say(`  About half comes back automatically after the program upload (the temporary upload buffer is closed).\n`);
+      if (!light) say(`  About half comes back automatically after the program upload (the temporary upload buffer is closed).\n`);
+      else say(`  ≈ 0.01 SOL is kept as rent for the launchpad config; the rest pays claim transactions later.\n`);
       process.exit(2);
     }
     say(`  Get free devnet SOL at https://faucet.solana.com (sign in with GitHub for 5 SOL) for this address, then run this again:\n\n    ${keeper.publicKey.toBase58()}\n`);
@@ -107,8 +114,8 @@ async function main() {
   }
   ok(`keeper balance ${bal / LAMPORTS_PER_SOL} SOL`);
 
-  // 2. Escrow program.
-  if (!programInfo?.executable) {
+  // 2. Escrow program (not in light mode).
+  if (!light && !programInfo?.executable) {
     if (!existsSync(soPath)) throw new Error(`Missing ${soPath}. Build it: cd programs && anchor build && cp target/deploy/bounty_escrow.so build/`);
     if (!existsSync(programKeyPath)) throw new Error(`Missing ${programKeyPath} (the program's address key; ask the on-chain dev for it)`);
     say("  Deploying the escrow program (takes a minute)...");
@@ -123,7 +130,7 @@ async function main() {
       throw new Error(`Deploy failed (${(e as Error).message.split("\n")[0]}). The Solana CLI output above says why. Common fixes: wait a minute and run this again (devnet is busy), or top up the keeper if it ran out of SOL.`);
     }
   }
-  ok(`escrow program ${ESCROW_PROGRAM_ID.toBase58()}`);
+  if (!light) ok(`escrow program ${ESCROW_PROGRAM_ID.toBase58()}`);
 
   // 3. Our Meteora DBC launchpad config (fee claimer = keeper).
   const lp = new Launchpad(conn, dbcConfig.publicKey);
@@ -134,7 +141,8 @@ async function main() {
   ok(`Meteora launchpad config ${dbcConfig.publicKey.toBase58()}`);
 
   // 4. Escrow config: 2 of 3 verifiers, challenge window, grace covering recheck + vote + extension.
-  const challengeWindowSec = Number(process.env.CHALLENGE_WINDOW_SEC || (demo ? 20 : 48 * 3600));
+  // Mainnet: instant claim (docs/decisions.md 2026-09-29), no review window unless you set one.
+  const challengeWindowSec = Number(process.env.CHALLENGE_WINDOW_SEC || (mainnet ? 0 : demo ? 20 : 48 * 3600));
   const recheck = Number(process.env.RECHECK_AFTER_SEC || (demo ? 20 : 24 * 3600));
   const vote = Number(process.env.VOTE_WINDOW_SEC || (demo ? 60 : 48 * 3600));
   const deadlineGraceSec = recheck + 2 * vote + 3600;
@@ -143,15 +151,17 @@ async function main() {
     verifiers: [verifierMain.publicKey, verifierBackup.publicKey, verifierAdmin.publicKey] as [PublicKey, PublicKey, PublicKey],
     threshold: 2, challengeWindowSec, deadlineGraceSec, treasury: keeper.publicKey, dbcConfig: dbcConfig.publicKey,
   };
-  const existing = await escrow.config();
-  if (!existing) {
+  const existing = light ? null : await escrow.config();
+  if (light) {
+    ok(`light mode: pots wait in each coin's pool; challenge window ${challengeWindowSec}s`);
+  } else if (!existing) {
     await sendAndConfirmTransaction(conn, new Transaction().add(await escrow.initializeConfig(keeper.publicKey, args)), [keeper], { commitment: "confirmed" });
   } else if (existing.admin.equals(keeper.publicKey)) {
     await sendAndConfirmTransaction(conn, new Transaction().add(await escrow.updateConfig(keeper.publicKey, args, keeper.publicKey)), [keeper], { commitment: "confirmed" });
   } else {
     say(`  ! escrow config exists with another admin (${existing.admin.toBase58()}); left unchanged`);
   }
-  ok(`escrow config: 2 of 3 verifiers, challenge window ${challengeWindowSec}s, deadline grace ${deadlineGraceSec}s`);
+  if (!light) ok(`escrow config: 2 of 3 verifiers, challenge window ${challengeWindowSec}s, deadline grace ${deadlineGraceSec}s`);
 
   // 5. api/.env (devnet/localnet) or api/.env.mainnet (mainnet: your local setup keeps working on devnet)
   const b58 = (k: Keypair) => bs58.encode(k.secretKey);
@@ -166,14 +176,15 @@ async function main() {
     VERIFIER_BACKUP_SECRET_KEY: b58(verifierBackup),
     VERIFIER_ALLOWED_SIGNERS: args.verifiers.map((v) => v.toBase58()).join(","),
     CHALLENGE_WINDOW_SEC: String(challengeWindowSec),
+    ESCROW_MODE: light ? "pool" : "program",
   };
   if (mainnet) {
     const f = path.join(apiDir, ".env.mainnet");
     writeFileSync(f, Object.entries({ ...values, SOLANA_RPC_URL: rpc }).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
     ok("mainnet settings saved in api/.env.mainnet (never commit it; api/.chain/mainnet-beta holds the keys)");
     say(`\n  ---- Paste into Railway → bountypad-api → Variables → Raw Editor (replace the devnet values) ----\n`);
-    for (const [k, v] of Object.entries({ ...values, SOLANA_RPC_URL: rpc, NEXT_PUBLIC_SOLANA_CHAIN: "solana:mainnet", DB_SCHEMA: "mainnet" })) say(`${k}=${v}`);
-    say(`\n  Keeper balance: ${(await conn.getBalance(keeper.publicKey)) / LAMPORTS_PER_SOL} SOL (pays fee claims and payouts; keep ≥ 0.2 SOL).\n`);
+    for (const [k, v] of Object.entries({ ...values, SOLANA_RPC_URL: rpc, NEXT_PUBLIC_SOLANA_CHAIN: "solana:mainnet", DB_SCHEMA: "mainnet", RECHECK_AFTER_SEC: process.env.RECHECK_AFTER_SEC || "60", MAX_BUY_SOL: process.env.MAX_BUY_SOL || "0.5" })) say(`${k}=${v}`);
+    say(`\n  Keeper balance: ${(await conn.getBalance(keeper.publicKey)) / LAMPORTS_PER_SOL} SOL (pays claim transactions; keep ≥ ${light ? "0.02" : "0.2"} SOL).\n`);
     return;
   }
   setEnv(values);

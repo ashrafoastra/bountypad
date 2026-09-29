@@ -97,7 +97,7 @@ export function TradePanel({ token, health }: { token: Token; health: Health }) 
         </p>
       )}
       {health.maxBuySol > 0 && <p className="text-xs text-gold mt-3">Early access: buys are limited to {health.maxBuySol} SOL per transaction.</p>}
-      <p className="text-xs text-dim mt-3">Every trade pays a fee. Part of it fills this coin's pot, locked in the escrow until the challenge is verified.</p>
+      <p className="text-xs text-dim mt-3">Every trade pays a fee. Part of it fills this coin's pot, held on-chain until the challenge is verified.</p>
     </div>
   );
 }

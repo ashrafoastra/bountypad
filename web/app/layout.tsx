@@ -10,7 +10,7 @@ import { Logo } from "@/components/ui";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: { default: "Bounty Pad: paid for the action", template: "%s · Bounty Pad" },
-  description: "Launch a meme coin with a challenge for anyone on X. Trading fees lock in an on-chain escrow and are paid only when they do it, verified automatically.",
+  description: "Launch a meme coin with a challenge for anyone on X. Trading fees fill a pot on Solana that is paid only when they do it, verified automatically.",
   openGraph: { title: "Bounty Pad: paid for the action", description: "Every coin is a public challenge. The pot unlocks only when the action is verified.", type: "website" },
   twitter: { card: "summary_large_image", title: "Bounty Pad: paid for the action" },
 };
@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="max-w-[1320px] mx-auto px-4 sm:px-8 py-12 grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
               <div className="flex flex-col gap-4 max-w-sm">
                 <Logo />
-                <p className="text-sm text-mute leading-relaxed">Meme coins with a challenge for anyone on X. Fees lock in an escrow program on Solana and are paid only for a verified action.</p>
+                <p className="text-sm text-mute leading-relaxed">Meme coins with a challenge for anyone on X. Fees fill a pot on Solana, paid only for a verified action.</p>
               </div>
               <div className="flex flex-col gap-3 text-sm">
                 <span className="label">Product</span>

@@ -127,7 +127,7 @@ export function TokenChart({ tokenId, ticker }: { tokenId: string; ticker: strin
       </div>
       <div className="px-4 h-8 flex items-center gap-4 font-mono text-[11px] text-mute border-b border-line overflow-x-auto scrollbar-none whitespace-nowrap">
         {mode === "pot" ? (
-          <span>Pot locked in escrow, SOL{data?.pot.length ? <> · <span className="text-ink">{data.pot[data.pot.length - 1].value.toFixed(4)}</span></> : null}</span>
+          <span>Pot, SOL{data?.pot.length ? <> · <span className="text-ink">{data.pot[data.pot.length - 1].value.toFixed(4)}</span></> : null}</span>
         ) : shown ? (
           <>
             <span>${ticker}/SOL{mode === "mcap" ? " · MCap" : ""}</span>

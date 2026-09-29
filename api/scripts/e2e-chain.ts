@@ -66,7 +66,7 @@ async function main() {
   }
   ok("2 buys confirmed");
 
-  step("keeper claims fees into the escrow pot");
+  step(health.escrowMode === "pool" ? "pot grows inside the pool (light mode)" : "keeper claims fees into the escrow pot");
   const pot = await waitFor("pot > 0", async () => {
     const d = await call("GET", `/api/tokens/${launched.id}`);
     return BigInt(d.bounty.potLamports) > 0n ? BigInt(d.bounty.potLamports) : null;
@@ -80,9 +80,11 @@ async function main() {
   await waitFor("CHALLENGE_WINDOW", async () => (await call("GET", `/api/tokens/${launched.id}`)).bounty.status === "CHALLENGE_WINDOW", 60);
   ok("verified, challenge window open");
 
-  step("escrow verified on-chain with 2 of 3 verifier signatures");
-  await waitFor("audit shows on-chain verify", async () => (await call("GET", `/api/bounties/${launched.bountyId}/audit`)).some((a: any) => a.reason.startsWith("verified on-chain")), 30);
-  ok("on-chain verification landed");
+  if (health.escrowMode !== "pool") {
+    step("escrow verified on-chain with 2 of 3 verifier signatures");
+    await waitFor("audit shows on-chain verify", async () => (await call("GET", `/api/bounties/${launched.bountyId}/audit`)).some((a: any) => a.reason.startsWith("verified on-chain")), 30);
+    ok("on-chain verification landed");
+  } else ok("light mode: the pot is still in the pool, untouched");
 
   step("no wallet yet -> payout waits for the target (Path 2)");
   await waitFor("AWAITING_CLAIM", async () => (await call("GET", `/api/tokens/${launched.id}`)).payout?.status === "AWAITING_CLAIM", 60);

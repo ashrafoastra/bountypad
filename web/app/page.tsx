@@ -21,6 +21,8 @@ function Home() {
   const q = (useSearchParams().get("q") ?? "").trim().toLowerCase();
   const { data: health } = useHealth();
   const solUsd = health?.solUsd ?? 150;
+  /** Light mode: no escrow program, the pot waits in each coin's Meteora pool. */
+  const light = health?.escrowMode === "pool";
   const [tab, setTab] = useState<Tab>("trending");
   const [view, setView] = useState<"list" | "grid">("list");
   const { data: stats } = useLive<Stats>("/api/stats", { every: 5000, on: (e) => e.type !== "TRADE" });
@@ -44,7 +46,7 @@ function Home() {
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28">
-      {!q && <Hero stats={stats} />}
+      {!q && <Hero stats={stats} light={light} />}
 
       {official.length > 0 && <Official items={official} solUsd={solUsd} />}
 
@@ -85,9 +87,9 @@ function Home() {
 
       {!q && (
         <>
-          <Compare />
-          <HowItWorks />
-          <Rules programId={health?.escrowProgram ?? null} explorerHref={health?.escrowProgram ? explorer(health, "account", health.escrowProgram) : null} />
+          <Compare light={light} />
+          <HowItWorks light={light} />
+          <Rules light={light} programId={health?.escrowProgram ?? null} explorerHref={health?.escrowProgram ? explorer(health, "account", health.escrowProgram) : null} />
           {feed.length > 0 && (
             <section>
               <div className="flex items-end justify-between mb-6">
@@ -125,20 +127,28 @@ const STEPS = [
   ["Verify", "Detected, rechecked after 24 hours, signed by 2 of 3 verifiers."],
   ["Release", "After a 48-hour public window, the escrow pays their wallet."],
 ] as const;
+const STEPS_LIGHT = [
+  ["Trade", "Every buy and sell on the bonding curve pays a fee."],
+  ["Hold", "The pot's share waits in the coin's own pool on Solana, visible to anyone."],
+  ["Act", "The person named does the challenge on X. Nobody submits anything."],
+  ["Verify", "Detected and rechecked automatically against the post itself."],
+  ["Claim", "They log in with X and the pot is sent to their wallet in one transaction."],
+] as const;
 
-function Hero({ stats }: { stats: Stats | null }) {
+function Hero({ stats, light }: { stats: Stats | null; light: boolean }) {
+  const STEPS_ = light ? STEPS_LIGHT : STEPS;
   const [step, setStep] = useState(0);
-  useEffect(() => { const t = setInterval(() => setStep((s) => (s + 1) % STEPS.length), 1800); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => setStep((s) => (s + 1) % STEPS_.length), 1800); return () => clearInterval(t); }, []);
   return (
     <section>
       <div className="frame grid lg:grid-cols-[1.25fr_1fr]">
         <Crosses />
         <div className="p-6 sm:p-10 lg:p-14 flex flex-col justify-between gap-12 lg:border-r border-line min-w-0">
           <div>
-            <div className="label">Solana · Meteora bonding curve · On-chain escrow</div>
+            <div className="label">Solana · Meteora bonding curve · {light ? "Pot held on-chain" : "On-chain escrow"}</div>
             <h1 className="display text-[56px] sm:text-[88px] lg:text-[104px] mt-8">Make them<br />earn it.</h1>
             <p className="text-mute text-[17px] sm:text-lg mt-8 max-w-xl leading-relaxed">
-              Launch a meme coin with a challenge for anyone on X. Every trade adds to a pot locked in an escrow program,
+              Launch a meme coin with a challenge for anyone on X. Every trade adds to a pot {light ? "held on Solana in the coin's own pool" : "locked in an escrow program"},
               and it pays out <span className="text-ink">only when they do it</span>, verified automatically.
             </p>
           </div>
@@ -155,7 +165,7 @@ function Hero({ stats }: { stats: Stats | null }) {
             <span className="label flex items-center gap-2"><span className="live-dot" />On-chain</span>
           </div>
           <ol className="flex-1 flex flex-col">
-            {STEPS.map(([t, d], i) => {
+            {STEPS_.map(([t, d], i) => {
               const on = i === step, done = i < step;
               return (
                 <li key={t} className="relative flex gap-5 px-6 sm:px-8 py-5 border-b border-line last:border-0 flex-1 items-center">
@@ -177,7 +187,7 @@ function Hero({ stats }: { stats: Stats | null }) {
       <div className="frame border-t-0 grid grid-cols-2 lg:grid-cols-4">
         <Crosses only={["bl", "br"]} />
         {([
-          ["Locked in escrow", stats ? sol(stats.lockedLamports) : 0, 3, "SOL"],
+          [light ? "Waiting in pots" : "Locked in escrow", stats ? sol(stats.lockedLamports) : 0, 3, "SOL"],
           ["Paid for actions", stats ? sol(stats.paidLamports) : 0, 3, "SOL"],
           ["Live challenges", stats?.liveCoins ?? 0, 0, ""],
           ["Completed", stats?.bountiesPaid ?? 0, 0, ""],
@@ -252,14 +262,15 @@ const COMPARE: [string, string, string][] = [
   ["What people follow", "A transfer receipt.", "A live challenge with a growing pot."],
 ];
 
-function Compare() {
+function Compare({ light }: { light: boolean }) {
+  const rows = light ? COMPARE.map((r) => (r[0] === "Where the money waits" ? [r[0], r[1], "In the coin's own pool on Solana, visible on-chain, until it's claimed."] as [string, string, string] : r)) : COMPARE;
   return (
     <section id="compare" className="scroll-mt-24">
       <div className="grid lg:grid-cols-[1.2fr_1fr] gap-8 lg:gap-16 mb-10">
         <div><div className="label mb-3">02 · Why Bounty Pad</div><h2 className="display text-[40px] sm:text-[60px]">Others pay for nothing.<br /><span className="text-mute">We pay for the action.</span></h2></div>
         <p className="text-mute text-[17px] leading-relaxed lg:self-end max-w-xl">
           Fee-routing launchpads send trading fees to a public figure whether or not they ever heard of the coin.
-          Here the money is a bounty: it waits in an on-chain escrow until the person does the challenge in public, and it is released by code, not by a payments company.
+          Here the money is a bounty: it waits on-chain {light ? "in the coin's pool" : "in an escrow program"} until the person does the challenge in public, then goes straight to their wallet, not through a payments company.
         </p>
       </div>
       <div className="frame">
@@ -269,7 +280,7 @@ function Compare() {
           <div className="px-4 sm:px-6 py-4 md:border-l border-line"><div className="label">Fee-routing launchpads</div><div className="text-dim text-xs mt-1">e.g. UsePaid</div></div>
           <div className="px-4 sm:px-6 py-4 border-l border-line bg-panel"><div className="label !text-ink">Bounty Pad</div><div className="text-dim text-xs mt-1">Paid for the action</div></div>
         </div>
-        {COMPARE.map(([k, them, us]) => (
+        {rows.map(([k, them, us]) => (
           <div key={k} className="grid grid-cols-2 md:grid-cols-[1fr_1.2fr_1.2fr] border-b border-line last:border-0">
             <div className="col-span-2 md:col-span-1 px-4 sm:px-6 pt-4 md:py-5 label">{k}</div>
             <div className="px-4 sm:px-6 py-3 md:py-5 text-mute text-[14px] sm:text-[15px] md:border-l border-line">{them}</div>
@@ -282,8 +293,13 @@ function Compare() {
   );
 }
 
-function HowItWorks() {
-  const items = [
+function HowItWorks({ light }: { light: boolean }) {
+  const items = light ? [
+    ["Launch", "Name, ticker, image. The coin goes live on a Meteora bonding curve with its challenge fixed at launch."],
+    ["Challenge", "Pick anyone on X and one fixed action: post the cashtag, post the contract, quote the launch post, or say a phrase on video."],
+    ["Fill the pot", "A share of every trading fee stays in the coin's pool on Solana, visible to anyone, until the challenge is verified."],
+    ["Pay the action", "We watch X and verify the post. The person logs in with X and the pot is sent to their wallet."],
+  ] : [
     ["Launch", "Name, ticker, image. The coin goes live on a Meteora bonding curve, and its bounty is written on-chain in the same transaction."],
     ["Challenge", "Pick anyone on X and one fixed action: post the cashtag, post the contract, quote the launch post, or say a phrase on video."],
     ["Fill the pot", "A share of every trading fee is claimed into the coin's escrow account. It can't move until the challenge is verified."],
@@ -308,8 +324,15 @@ function HowItWorks() {
   );
 }
 
-function Rules({ programId, explorerHref }: { programId: string | null; explorerHref: string | null }) {
-  const rules = [
+function Rules({ programId, explorerHref, light }: { programId: string | null; explorerHref: string | null; light: boolean }) {
+  const rules = light ? [
+    ["Fixed challenges", "Four machine-checkable actions. No free text, nothing to argue about."],
+    ["Permanent identity", "Targets are stored by X user ID, so a renamed or sold handle can't claim."],
+    ["Recheck", "The post must still be live when it's rechecked, and its latest edit must still pass."],
+    ["Public pot", "Each pot is the unclaimed fee balance of the coin's pool, readable by anyone on Solana."],
+    ["Log in to claim", "Only the X account named can claim, by logging in with X. Payment is one transaction."],
+    ["Burn, never share", "An unclaimed pot buys the coin and burns it. Nobody profits from blocking a payout."],
+  ] : [
     ["Fixed challenges", "Four machine-checkable actions. No free text, nothing to argue about."],
     ["Permanent identity", "Targets are stored by X user ID, so a renamed or sold handle can't claim."],
     ["24-hour recheck", "The post must still be live a day later, and its latest edit must still pass."],

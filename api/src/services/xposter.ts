@@ -38,7 +38,7 @@ export async function postAsPlatform(ctx: Ctx, text: string, replyTo?: string | 
  * the target: people are only notified after they act (CLAUDE.md §6.7).
  */
 export function launchText(ctx: Ctx, t: { id: string; ticker: string; action: string; phrase: string | null }) {
-  return `$${t.ticker} is live on Bounty Pad.\n\nThe challenge: ${actionPhrase(t.action, t.ticker, t.phrase)}.\nEvery trade grows the pot, locked on-chain until it's done.\n\n${ctx.env.webOrigin.replace(/\/$/, "")}/token/${t.id}`;
+  return `$${t.ticker} is live on Bounty Pad.\n\nThe challenge: ${actionPhrase(t.action, t.ticker, t.phrase)}.\nEvery trade grows the pot, held on Solana until it's done.\n\n${ctx.env.webOrigin.replace(/\/$/, "")}/token/${t.id}`;
 }
 
 /** Job: launch posts that couldn't be published at launch time (X down, token refresh…). */
@@ -76,7 +76,7 @@ export async function postReceipts(ctx: Ctx) {
   );
   for (const r of rows) {
     const sol = (Number(r.pot) / 1e9).toFixed(3);
-    const text = `Verified. @${r.username} completed the $${r.ticker} challenge.\n\n${sol} SOL is released from the on-chain escrow after a public review window. Log in with X to claim: ${ctx.env.webOrigin.replace(/\/$/, "")}/claim`;
+    const text = `Verified. @${r.username} completed the $${r.ticker} challenge.\n\n${sol} SOL is waiting for them on Solana. Log in with X to claim: ${ctx.env.webOrigin.replace(/\/$/, "")}/claim`;
     let mark: string;
     try { mark = (await postAsPlatform(ctx, text, r.post_id)) ?? "skipped"; log(`receipt for $${r.ticker}: ${mark}`); }
     catch (e) { mark = "failed"; log(`receipt for $${r.ticker} failed:`, (e as Error).message); }

@@ -14,3 +14,4 @@ api/.chain
 programs/.fixtures
 .DS_Store
 .sync/
+_to_delete/

@@ -22,6 +22,7 @@ export class SolanaChain {
   readonly keeper: Keypair;
   readonly admin: Keypair | null;
   readonly cluster: string;
+  readonly escrowMode: "program" | "pool";
   private verifierSecrets: string[];
 
   constructor(e: typeof Env) {
@@ -29,7 +30,8 @@ export class SolanaChain {
     if (!s.dbcConfig) throw new Error("DBC_CONFIG is missing (run: npm run chain:setup -w api)");
     if (!s.keeperSecret) throw new Error("KEEPER_SECRET_KEY is missing (run: npm run chain:setup -w api)");
     this.connection = new Connection(s.rpcUrl, "confirmed");
-    this.launchpad = new Launchpad(this.connection, new PublicKey(s.dbcConfig));
+    this.launchpad = new Launchpad(this.connection, new PublicKey(s.dbcConfig), s.escrowMode);
+    this.escrowMode = s.escrowMode;
     this.escrow = this.launchpad.escrow;
     this.keeper = Keypair.fromSecretKey(bs58.decode(s.keeperSecret));
     this.admin = s.adminSecret ? Keypair.fromSecretKey(bs58.decode(s.adminSecret)) : null;

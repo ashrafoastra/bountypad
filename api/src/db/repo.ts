@@ -2,6 +2,7 @@ import type { Bounty, Detection, FeedEvent, Payout, Profile, Token, Trade, VoteR
 import { iso, str, type Db } from "./index";
 import { PublicKey } from "@solana/web3.js";
 import { EscrowClient } from "../chain/escrow";
+import { env } from "../env";
 
 export const mapProfile = (r: any): Profile => ({
   xUserId: r.x_user_id, username: r.username, name: r.name, avatarUrl: r.avatar_url,
@@ -9,7 +10,7 @@ export const mapProfile = (r: any): Profile => ({
 });
 export const mapToken = (r: any): Token => ({
   id: r.id, mint: r.mint, name: r.name, ticker: r.ticker, imageUrl: r.image_url, description: r.description,
-  creatorWallet: r.creator_wallet, launchPostId: r.launch_post_id, pool: r.pool ?? null, launchTx: r.launch_tx ?? null, escrow: r.pool ? EscrowClient.bountyPda(new PublicKey(r.mint)).toBase58() : null, featured: !!r.featured, links: r.links ?? {}, createdAt: iso(r.created_at),
+  creatorWallet: r.creator_wallet, launchPostId: r.launch_post_id, pool: r.pool ?? null, launchTx: r.launch_tx ?? null, escrow: r.pool && env.solana.escrowMode === "program" ? EscrowClient.bountyPda(new PublicKey(r.mint)).toBase58() : null, featured: !!r.featured, links: r.links ?? {}, createdAt: iso(r.created_at),
 });
 export const mapBounty = (r: any): Bounty => ({
   id: r.id, tokenId: r.token_id, targetXUserId: r.target_x_user_id, action: r.action, phrase: r.phrase,

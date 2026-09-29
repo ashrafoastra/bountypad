@@ -40,7 +40,14 @@ async function main() {
     await db.query(`truncate table votes, vote_rounds, detections, payouts, audit_log, events, trades, holders, fee_claims, burns, pending_launches, bounties, tokens, profiles restart identity cascade`);
     if (!chain && env.simSeed) await seed(ctx);
   }
-  if (chain) {
+  if (chain && chain.escrowMode === "pool") {
+    // Light mode: only our Meteora launchpad config has to exist.
+    if (!(await chain.connection.getAccountInfo(chain.launchpad.dbcConfig).catch(() => null)))
+      throw new Error(`DBC_CONFIG ${env.solana.dbcConfig} not found on ${env.solana.cluster}. Run: ESCROW_MODE=pool npm run chain:setup -w api`);
+    const bal = await chain.balance(chain.keeper.publicKey);
+    console.log(`Solana ${chain.cluster} (light mode: pots wait in the pools), keeper ${chain.keeper.publicKey.toBase58()} (${Number(bal) / 1e9} SOL)`);
+    if (bal < 20_000_000n) console.warn("  Keeper balance is low: fund it so it can pay claim transactions.");
+  } else if (chain) {
     const cfg = await chain.escrow.config().catch(() => null);
     if (!cfg) throw new Error(`Escrow program not initialized on ${env.solana.cluster} (${env.solana.rpcUrl}). Run: npm run chain:setup -w api`);
     // Every launch is checked on-chain against the escrow's launchpad config: they must match.

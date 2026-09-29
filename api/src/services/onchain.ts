@@ -3,6 +3,7 @@ import type { Ctx } from "../app";
 import type { OnchainBounty } from "../chain/escrow";
 import { OnchainStatus } from "../chain/escrow";
 import { emit } from "./events";
+import { releasePool, syncPools } from "./poolmode";
 
 /**
  * CHAIN=solana. The database is the brain (it reads X and runs the status machine); these jobs
@@ -32,7 +33,7 @@ async function exclusive<T>(bountyId: string, fn: () => Promise<T>): Promise<T |
 /** Keeper: claim partner fees for every pool, deposit the pot share into its bounty in the same transaction. */
 export async function claimFees(ctx: Ctx) {
   const chain = ctx.chain;
-  if (!chain) return;
+  if (!chain || chain.escrowMode === "pool") return; // light mode: fees wait in the pool until payout
   const rows = await ctx.db.query(`select t.id, t.mint, t.ticker, b.id as bounty_id from tokens t join bounties b on b.token_id=t.id where t.pool is not null`);
   for (const t of rows) {
     try {
@@ -52,6 +53,7 @@ export async function claimFees(ctx: Ctx) {
 export async function syncBounties(ctx: Ctx) {
   const chain = ctx.chain;
   if (!chain) return;
+  if (chain.escrowMode === "pool") return syncPools(ctx);
   const rows = await ctx.db.query(
     `select b.*, t.mint, t.ticker, t.id as token_id, p.linked_wallet, p.username, p.name as target_name
        from bounties b join tokens t on t.id=b.token_id join profiles p on p.x_user_id=b.target_x_user_id
@@ -203,7 +205,8 @@ async function payoutWalletFor(ctx: Ctx, b: any): Promise<PublicKey | null> {
  * wallet is attested, sweep the latest fees into the pot, then release. Returns null if the
  * chain isn't ready yet (a later tick retries).
  */
-export async function releaseOnchain(ctx: Ctx, p: { bid: string; mint: string; wallet: string; ticker: string }) {
+export async function releaseOnchain(ctx: Ctx, p: { bid: string; mint: string; wallet: string; ticker: string }): Promise<{ tx: string | null; amount: string; wallet: string } | null> {
+  if (ctx.chain!.escrowMode === "pool") return exclusive(p.bid, () => releasePool(ctx, p));
   return exclusive(p.bid, () => releaseLocked(ctx, p));
 }
 

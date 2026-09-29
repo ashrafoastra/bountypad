@@ -78,6 +78,15 @@ export const env = {
     cluster: (process.env.SOLANA_CLUSTER || "devnet") as "localnet" | "devnet" | "mainnet-beta",
     /** Our Meteora DBC launchpad config key (created by chain:setup). */
     dbcConfig: process.env.DBC_CONFIG || "",
+    /**
+     * Where the pot waits until payout.
+     *  "program": our escrow program (bounty terms on-chain, 2-of-3 verifier release). Needs the
+     *             program deployed once (≈ 2 SOL of rent).
+     *  "pool":    light mode. No program: the pot's fees stay unclaimed inside each coin's Meteora
+     *             pool (only the keeper, the pool's fee claimer, can take them) and the keeper
+     *             claims + pays the target in one transaction when they claim. Setup ≈ 0.02 SOL.
+     */
+    escrowMode: (process.env.ESCROW_MODE === "pool" ? "pool" : "program") as "program" | "pool",
     /** Fee claimer + transaction payer for jobs + burn treasury. The multisig on mainnet. */
     keeperSecret: process.env.KEEPER_SECRET_KEY || "",
     /** Escrow admin (freeze / unfreeze / cancel). Optional: without it admin actions need the multisig. */

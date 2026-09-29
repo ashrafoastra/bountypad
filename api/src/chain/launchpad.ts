@@ -88,7 +88,7 @@ export function potShare(claimedLamports: bigint) {
 export class Launchpad {
   readonly dbc: DynamicBondingCurveClient;
   readonly escrow: EscrowClient;
-  constructor(readonly connection: Connection, readonly dbcConfig: PublicKey) {
+  constructor(readonly connection: Connection, readonly dbcConfig: PublicKey, readonly escrowMode: "program" | "pool" = "program") {
     this.dbc = new DynamicBondingCurveClient(connection, "confirmed");
     this.escrow = new EscrowClient(connection);
   }
@@ -121,14 +121,15 @@ export class Launchpad {
           firstBuyParam: { buyer: p.creator, buyAmount: new BN(p.firstBuyLamports.toString()), minimumAmountOut: new BN(1), referralTokenAccount: null },
         })
       : await this.dbc.creator.createPool(createParam);
-    const bountyIx = await this.escrow.createBounty({
+    // Light mode ("pool"): no escrow account, the pot waits in the pool's unclaimed partner fees.
+    const bountyIxs = this.escrowMode === "pool" ? [] : [await this.escrow.createBounty({
       mint: p.mint.publicKey, pool, creator: p.creator, targetXUserId: p.targetXUserId,
       action: p.action, phraseHash: p.phraseHash, deadline: p.deadline,
-    });
+    })];
     const tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
       ...stripComputeBudget(poolTx.instructions),
-      bountyIx,
+      ...bountyIxs,
     );
     const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("confirmed");
     tx.recentBlockhash = blockhash;
@@ -182,6 +183,29 @@ export class Launchpad {
     const tx = new Transaction().add(...claimTx.instructions, await this.escrow.deposit(mint, keeper, pot));
     tx.feePayer = keeper;
     return { tx, claimed: claimable, pot };
+  }
+
+  /**
+   * Light mode: claim ALL our partner fees of one pool (the platform keeps its share in the
+   * keeper), capped at the amount read so the pot share we pay matches what arrived.
+   */
+  async claimTx(mint: PublicKey, keeper: PublicKey) {
+    const p = await this.pool(mint);
+    if (!p) return null;
+    const claimable = BigInt(p.state.poolState.partnerQuoteFee.toString());
+    if (claimable <= 0n) return { tx: null, claimed: 0n, pot: 0n };
+    const claimTx = await this.dbc.partner.claimPartnerTradingFee({
+      feeClaimer: keeper, payer: keeper, pool: p.address, maxBaseAmount: new BN(0), maxQuoteAmount: new BN(claimable.toString()),
+    });
+    const tx = new Transaction().add(...claimTx.instructions);
+    tx.feePayer = keeper;
+    return { tx, claimed: claimable, pot: potShare(claimable) };
+  }
+
+  /** Light mode: the pot waiting in the pool right now (our unclaimed partner fees × pot share). */
+  async pendingPot(mint: PublicKey) {
+    const p = await this.pool(mint);
+    return p ? potShare(BigInt(p.state.poolState.partnerQuoteFee.toString())) : null;
   }
 
   /** Buy (SOL -> coin) or sell (coin -> SOL) on the bonding curve. */

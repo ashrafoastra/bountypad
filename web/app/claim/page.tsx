@@ -57,7 +57,7 @@ export default function Claim() {
             {[
               ["Verified by X", "You sign in on x.com. X tells us which account it is: nobody can claim for you."],
               ["Read-only", "We only ask to read your profile. We can't post, follow or DM as you, and we drop the X token right away."],
-              ["Your wallet, your choice", "Pick any Solana wallet to receive, or connect one here. Payouts come from the on-chain escrow."],
+              ["Your wallet, your choice", "Pick any Solana wallet to receive, or connect one here. Payouts are sent on Solana."],
             ].map(([t, d], i) => (
               <div key={t} className={`p-5 border-line ${i ? "border-t sm:border-t-0 sm:border-l" : ""}`}>
                 <div className="label !text-ink">{t}</div>
