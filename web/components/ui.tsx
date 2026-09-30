@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BountyStatus, CheckResult } from "@bountypad/shared";
 import { STATUS } from "@/lib/format";
 
-/** The Bounty Pad mark (from the Higgsfield concept): a target reticle around a verified check. */
+/** The Bounty Pad mark: a bounty ticket (clipped corner, punched hole, tear bar), off-white on the dark canvas. */
 export function LogoMark({ size = 28 }: { size?: number }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img src="/brand/logo.svg" width={size} height={size} alt="" aria-hidden className="shrink-0" />;

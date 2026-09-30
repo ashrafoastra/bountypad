@@ -203,7 +203,7 @@ Side exits: `REJECTED` (back to `OPEN`), `EXPIRED` (pot burned), `OPTED_OUT` (po
 - Positioning on the site: **"Others pay for nothing. We pay for the action."** (vs fee-routing launchpads like UsePaid; facts only, dated).
 - Token page = trading terminal: header stats (price, 24h, market cap, 24h volume, holders, curve progress), TradingView lightweight-charts candles + volume with Price / MCap / Pot views and timeframes, trade panel, the challenge and its pot, verification, trades.
 - Every coin must have an image (uploaded at launch, required). The coin image is shown with brackets, square.
-- Logo: off-white square with a black target reticle around a check (`web/public/brand/logo.svg`).
+- Logo (2026-09-30): the "Bounty Ticket", an off-white ticket with a clipped corner, a punched hole and a tear bar, cut out of the dark canvas (`web/public/brand/logo.svg`). The logo is never animated or used inside motion pieces.
 - Mobile-first. Every page must work at phone width.
 
 ## 8. Security and rules

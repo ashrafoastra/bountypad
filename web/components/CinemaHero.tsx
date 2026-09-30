@@ -9,7 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { EASE, Magnetic, SplitWords } from "./motion";
 import { SplitButton } from "./ui";
 
-const SRC = process.env.NEXT_PUBLIC_HERO_VIDEO || "/hero/hero.mp4";
+const SRC = process.env.NEXT_PUBLIC_HERO_VIDEO || "https://d2ol7oe51mr4n9.cloudfront.net/user_3JxX9fQ71iaOufbX3O561FKsdQa/0185b18e-e174-4bc7-92ef-ea4f75298582.mp4";
+const POSTER = process.env.NEXT_PUBLIC_HERO_POSTER || "https://d2ol7oe51mr4n9.cloudfront.net/user_3JxX9fQ71iaOufbX3O561FKsdQa/3a10dac0-8119-4cda-a835-b86f6ef6818a.jpg";
 
 /** The trailer's chapters, in step with its shots (seconds). Our own type over the film: no AI text. */
 const CHAPTERS: [number, string, string][] = [
@@ -46,9 +47,29 @@ export function CinemaHero({ light }: { light: boolean }) {
   useEffect(() => {
     const v = vid.current;
     if (!v) return;
-    if (v.error || v.networkState === 3) setVideoOk(false);
-    else if (!v.paused && v.readyState > 2) setPlaying(true);
+    if (v.error) { setVideoOk(false); return; }
+    if (!v.paused && v.readyState > 2) setPlaying(true);
+    // autoplay can be dropped during hydration: ask again (muted, so browsers allow it)
+    else v.play().catch(() => {});
   }, []);
+  // The lamp: a pool of light that follows the pointer (eased), the rest of the frame sits in shadow.
+  const stage = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stage.current, host = ref.current;
+    if (!el || !host || reduce) return;
+    let x = 0.66, y = 0.42, tx = x, ty = y, raf = 0;
+    const onMove = (e: PointerEvent) => { const r = host.getBoundingClientRect(); tx = (e.clientX - r.left) / r.width; ty = (e.clientY - r.top) / r.height; };
+    const onLeave = () => { tx = 0.66; ty = 0.42; };
+    const loop = () => {
+      x += (tx - x) * 0.06; y += (ty - y) * 0.06;
+      el.style.setProperty("--mx", `${(x * 100).toFixed(2)}%`);
+      el.style.setProperty("--my", `${(y * 100).toFixed(2)}%`);
+      raf = requestAnimationFrame(loop);
+    };
+    host.addEventListener("pointermove", onMove); host.addEventListener("pointerleave", onLeave);
+    loop();
+    return () => { cancelAnimationFrame(raf); host.removeEventListener("pointermove", onMove); host.removeEventListener("pointerleave", onLeave); };
+  }, [reduce]);
   // When the branded intro plays first (once per visit), the opening waits for it.
   const [D] = useState(() => {
     try { return typeof window !== "undefined" && location.pathname === "/" && sessionStorage.getItem("bp-intro") !== "1" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1.5 : 0; }
@@ -58,14 +79,17 @@ export function CinemaHero({ light }: { light: boolean }) {
   const scale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 0.88]);
   const lift = useTransform(scrollYProgress, [0, 1], ["0%", reduce ? "0%" : "-35%"]);
   const fade = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
-  const dim = useTransform(scrollYProgress, [0, 1], [0.35, 0.8]);
+  const dim = useTransform(scrollYProgress, [0, 1], [0.08, 0.75]);
 
   return (
     <section ref={ref} className="relative w-screen left-1/2 -translate-x-1/2 -mt-8 sm:-mt-10 h-[calc(100svh-64px)] min-h-[620px]">
-      <motion.div className="absolute inset-0 overflow-hidden bg-[#0a0a0a] origin-top" style={{ scale }}>
+      <motion.div ref={stage} className="absolute inset-0 overflow-hidden bg-[#0a0a0a] origin-top" style={{ scale }}>
+        {/* the poster holds the frame until the film is ready, so the stage is never empty */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={POSTER} alt="" aria-hidden className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${playing ? "opacity-0" : "opacity-100"}`} />
         {videoOk && (
-          <video ref={vid} className="absolute inset-0 w-full h-full object-cover" src={SRC} onPlaying={() => setPlaying(true)} autoPlay muted loop playsInline preload="auto"
-            onError={() => setVideoOk(false)}
+          <video ref={vid} className="absolute inset-0 w-full h-full object-cover" src={SRC} poster={POSTER} onPlaying={() => setPlaying(true)} autoPlay muted loop playsInline preload="auto"
+            onError={(e) => { if (e.currentTarget.error) setVideoOk(false); }}
             onTimeUpdate={(e) => { const t = e.currentTarget.currentTime; let c = 0; CHAPTERS.forEach(([at], i) => { if (t >= at) c = i; }); setChapter(c); }} />
         )}
         {/* without a film: a slow light sweeping a dark stage */}
@@ -77,8 +101,12 @@ export function CinemaHero({ light }: { light: boolean }) {
           </div>
         )}
         <motion.div className="absolute inset-0 bg-black" style={{ opacity: dim }} />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#101010] via-transparent to-[#101010]/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#101010]/85 via-[#101010]/20 to-transparent" />
+        {/* the lamp: light where the pointer is, shadow elsewhere */}
+        <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(circle at var(--mx, 66%) var(--my, 42%), transparent 0, transparent 16%, rgba(10,10,10,0.5) 48%, rgba(10,10,10,0.78) 88%)" }} />
+        {/* an anamorphic streak riding the light */}
+        {!reduce && <div aria-hidden className="absolute left-0 right-0 h-px mix-blend-screen opacity-60 pointer-events-none" style={{ top: "var(--my, 42%)", background: "radial-gradient(ellipse 38% 100% at var(--mx, 66%) 50%, rgba(242,241,238,0.55), transparent 70%)", filter: "blur(0.5px)" }} />}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#101010] via-transparent to-[#101010]/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#101010]/70 via-transparent to-transparent" />
       </motion.div>
 
       {/* letterbox: parts on load */}
