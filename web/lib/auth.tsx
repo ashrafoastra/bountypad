@@ -102,6 +102,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           accentColor: "#f2f1ee",
           walletChainType: "solana-only",
           showWalletLoginFirst: true,
+          // Solana wallets first (the chain Bounty Pad runs on), installed ones right after.
+          walletList: ["phantom", "solflare", "backpack", "jupiter", "detected_solana_wallets", "okx_wallet", "bitget_wallet", "wallet_connect_qr_solana"],
           landingHeader: "Connect to Bounty Pad",
         },
         embeddedWallets: { solana: { createOnLogin: "users-without-wallets" } },
