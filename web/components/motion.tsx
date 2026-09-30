@@ -58,11 +58,23 @@ export function Cursor() {
     const down = () => setMode("down");
     const up = () => setMode("idle");
     const leave = () => { x.set(-100); y.set(-100); };
+    // While a wallet/auth modal (Privy) is open, hand the pointer back to the system cursor:
+    // the reticle sits under the modal's layer and users couldn't see where they were clicking.
+    const MODAL = '#privy-dialog, #privy-modal-content, [role="dialog"][aria-modal="true"]';
+    const sync = () => {
+      const open = !!document.querySelector(MODAL);
+      document.documentElement.classList.toggle("has-cursor", !open);
+      setOn(!open);
+    };
+    const mo = new MutationObserver(sync);
+    mo.observe(document.body, { childList: true, subtree: true });
+    sync();
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerdown", down);
     window.addEventListener("pointerup", up);
     document.addEventListener("pointerleave", leave);
     return () => {
+      mo.disconnect();
       document.documentElement.classList.remove("has-cursor");
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerdown", down);
       window.removeEventListener("pointerup", up); document.removeEventListener("pointerleave", leave);

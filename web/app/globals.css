@@ -134,6 +134,15 @@ body {
 
 /* the reticle cursor replaces the system pointer on fine pointers */
 html.has-cursor, html.has-cursor * { cursor: none !important; }
+/* wallet / auth modals (Privy) keep the real system pointer so users can pick a wallet */
+html.has-cursor [id^="privy"], html.has-cursor [id^="privy"] *,
+html.has-cursor #headlessui-portal-root, html.has-cursor #headlessui-portal-root *,
+html.has-cursor [role="dialog"], html.has-cursor [role="dialog"] * { cursor: auto !important; }
+html.has-cursor [id^="privy"] :is(button, a, [role=button], label),
+html.has-cursor #headlessui-portal-root :is(button, a, [role=button], label),
+html.has-cursor [role="dialog"] :is(button, a, [role=button], label) { cursor: pointer !important; }
+html.has-cursor [id^="privy"] :is(input, textarea),
+html.has-cursor [role="dialog"] :is(input, textarea) { cursor: text !important; }
 
 /* a light that follows the pointer over hairline frames */
 .spot { isolation: isolate; }
