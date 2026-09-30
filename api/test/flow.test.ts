@@ -31,10 +31,10 @@ beforeEach(async () => {
   };
 });
 
-async function coin(o: Partial<{ ticker: string; target: string; action: string; phrase: string; creator: string }> = {}) {
+async function coin(o: Partial<{ ticker: string; target: string; action: string; phrase: string; creator: string; postUrl: string }> = {}) {
   const r = await launch(ctx, {
     name: "Test " + (o.ticker ?? "ROCKET"), ticker: o.ticker ?? "ROCKET", creatorWallet: o.creator ?? SIM_CREATOR, imageUrl: "https://example.com/coin.png",
-    targetHandle: o.target ?? "novareyes", action: o.action ?? "TWEET_CASHTAG", phrase: o.phrase ?? null,
+    targetHandle: o.target ?? "novareyes", action: o.action ?? "TWEET_CASHTAG", phrase: o.phrase ?? null, postUrl: o.postUrl ?? null,
   });
   await sleep(5); // posts must be strictly after launch
   return r;
@@ -227,6 +227,32 @@ describe("other text actions", () => {
     x.createPost({ username: "alinamarsh", text: "cute", quoteOf: launchPost });
     await jobs(); await due(); await jobs();
     expect(await status(bountyId)).toBe("CHALLENGE_WINDOW");
+  });
+});
+
+describe("repost bounty", () => {
+  it("counts only a repost of the exact post, and the repost must still be there at the recheck", async () => {
+    const post = x.createPost({ username: "bytezen", text: "gm" });
+    const other = x.createPost({ username: "bytezen", text: "other" });
+    const { bountyId } = await coin({ action: "REPOST_POST", target: "alinamarsh", postUrl: `https://x.com/bytezen/status/${post.id}` } as any);
+    x.createPost({ username: "alinamarsh", text: "", repost: other.id });
+    x.createPost({ username: "alinamarsh", text: "nice", quoteOf: post.id }); // a quote isn't a repost
+    await jobs();
+    expect(await status(bountyId)).toBe("OPEN");
+    const rp = x.createPost({ username: "alinamarsh", text: "", repost: post.id });
+    await jobs();
+    expect(await status(bountyId)).toBe("DETECTED_CONFIRMING");
+    x.deletePost(rp.id); // un-reposted before the recheck
+    await due(); await jobs();
+    expect(await status(bountyId)).toBe("OPEN");
+    x.createPost({ username: "alinamarsh", text: "", repost: post.id });
+    await jobs(); await due(); await jobs();
+    expect(await status(bountyId)).toBe("CHALLENGE_WINDOW");
+  });
+
+  it("needs a real post link", async () => {
+    await expect(coin({ action: "REPOST_POST", target: "alinamarsh" } as any)).rejects.toThrow(/link of the post/);
+    await expect(coin({ action: "REPOST_POST", target: "alinamarsh", postUrl: "https://x.com/a/status/99999" } as any)).rejects.toThrow(/doesn't exist/);
   });
 });
 

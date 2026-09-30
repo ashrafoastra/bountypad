@@ -22,10 +22,13 @@ const LINK_FIELDS: [LinkKind, string, string][] = [
 ];
 
 const STEPS = ["Coin", "Target", "Challenge", "Launch"];
+/** A post link from X (x.com / twitter.com …/status/<id>) or a bare post id. */
+const POST_LINK = /^(\d{5,25}|(https?:\/\/)?(www\.|mobile\.)?(x|twitter)\.com\/[^/]+\/status(es)?\/\d{5,25}\S*)$/i;
 const ACTIONS: { id: BountyAction; title: string; desc: string }[] = [
   { id: "TWEET_CASHTAG", title: "Post the cashtag", desc: "They post a message on X containing $TICKER." },
   { id: "TWEET_CONTRACT", title: "Post the contract address", desc: "They post the coin's contract address on X." },
-  { id: "QUOTE_LAUNCH", title: "Quote the launch post", desc: "They quote the coin's official launch post on X." },
+  { id: "REPOST_POST", title: "Repost a post", desc: "They repost the X post you choose. We check their reposts by the post's id." },
+  { id: "QUOTE_LAUNCH", title: "Quote a post", desc: "They quote the X post you choose." },
   { id: "BIO_CONTRACT", title: "Put the contract address in their bio", desc: "They add the coin's contract address to their X bio. Checked again a moment later: it must still be there." },
 ];
 
@@ -37,7 +40,7 @@ export default function Launch() {
   const auth = useAuth();
   const [step, setStep] = useState(0);
   const [links, setLinks] = useState<Record<LinkKind, string>>({ website: "", x: "", telegram: "", github: "", tiktok: "", youtube: "" });
-  const [f, setF] = useState({ name: "", ticker: "", imageUrl: "", description: "", handle: "", action: "TWEET_CASHTAG" as BountyAction, phrase: "", deadlineDays: RULES.defaultDeadlineDays, firstBuySol: "" });
+  const [f, setF] = useState({ name: "", ticker: "", imageUrl: "", description: "", handle: "", action: "TWEET_CASHTAG" as BountyAction, phrase: "", postUrl: "", deadlineDays: RULES.defaultDeadlineDays, firstBuySol: "" });
   const [stage, setStage] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const onchain = health?.chain === "solana";
@@ -66,10 +69,12 @@ export default function Launch() {
 
   const tErr = f.ticker ? tickerError(f.ticker) : null;
   const ticker = normalizeTicker(f.ticker) || "TICKER";
+  const needsPost = f.action === "REPOST_POST" || f.action === "QUOTE_LAUNCH";
   const valid = [
     !!f.name.trim() && !!f.ticker && !tErr && !!f.imageUrl,
     lookup?.ok === true,
-    f.action !== "VIDEO_PHRASE" || f.phrase.trim().split(/\s+/).length >= 2,
+    (f.action !== "VIDEO_PHRASE" || f.phrase.trim().split(/\s+/).length >= 2) &&
+      (!needsPost || POST_LINK.test(f.postUrl.trim()) || (f.action === "QUOTE_LAUNCH" && !f.postUrl.trim() && !!health?.platformX)),
     true,
   ];
 
@@ -79,6 +84,7 @@ export default function Launch() {
       const w = auth.wallet;
       if (!w) { auth.login(); setBusy(false); return; }
       const body = { name: f.name, ticker: f.ticker, imageUrl: f.imageUrl || null, description: f.description, creatorWallet: w, targetHandle: f.handle, action: f.action, phrase: f.action === "VIDEO_PHRASE" ? f.phrase : null, deadlineDays: f.deadlineDays,
+        postUrl: needsPost && f.postUrl.trim() ? f.postUrl.trim() : null,
         links: Object.fromEntries(Object.entries(links).filter(([, v]) => v.trim())) };
       if (!onchain) {
         const r = await api<{ id: string }>("/api/tokens", { method: "POST", json: body });
@@ -172,7 +178,7 @@ export default function Launch() {
 
             {step === 2 && (<>
               <div className="grid gap-3">
-                {ACTIONS.map((a) => { const off = (a.id === "QUOTE_LAUNCH" && health?.platformX === false) || (a.id === "VIDEO_PHRASE" && health?.videoChallenges === false); return (
+                {ACTIONS.map((a) => { const off = a.id === "VIDEO_PHRASE" && health?.videoChallenges === false; return (
                   <button key={a.id} disabled={off} onClick={() => setF({ ...f, action: a.id })}
                     className={`text-left border p-4 transition-colors disabled:opacity-40 disabled:pointer-events-none ${f.action === a.id ? "border-ink bg-panel-2" : "border-line hover:border-line-2 hover:bg-panel"}`}>
                     <div className="flex items-center gap-3">
@@ -183,6 +189,12 @@ export default function Launch() {
                   </button>
                 ); })}
               </div>
+              {needsPost && (
+                <Field label={f.action === "REPOST_POST" ? "The post they must repost" : "The post they must quote"} hint={`Paste its link from X. ${f.action === "REPOST_POST" ? "Only a repost of this exact post counts." : "Only a quote of this exact post counts."}${f.action === "QUOTE_LAUNCH" && health?.platformX ? " Leave empty to use the coin's own launch post." : ""}`}>
+                  <input className="input font-mono text-sm" maxLength={300} value={f.postUrl} onChange={set("postUrl")} placeholder="https://x.com/user/status/1234567890" />
+                  {f.postUrl.trim() && !POST_LINK.test(f.postUrl.trim()) && <p className="text-red text-sm mt-2">That isn't a link to a post on X.</p>}
+                </Field>
+              )}
               {f.action === "VIDEO_PHRASE" && (
                 <Field label="The phrase they must say" hint="Short and natural. Scored against a transcript of their video.">
                   <input className="input" maxLength={80} value={f.phrase} onChange={set("phrase")} placeholder={`I'm holding ${f.name || "Rocket"} coin`} />

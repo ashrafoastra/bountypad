@@ -92,6 +92,7 @@ export class MockX implements XProvider {
     const cashtag = /(?:^|\s)\$([A-Za-z]+)/.exec(query)?.[1];
     const phrase = /"([^"]+)"/.exec(query)?.[1];
     const quotes = /quotes_of_tweet_id:(\d+)/.exec(query)?.[1];
+    const reposts = /retweets_of_tweet_id:(\d+)/.exec(query)?.[1];
     const noRt = query.includes("-is:retweet");
     const u = from ? this.userByName(from) : null;
     return this.live()
@@ -101,6 +102,7 @@ export class MockX implements XProvider {
       .filter((p) => !cashtag || p.cashtags.includes(cashtag.toUpperCase()))
       .filter((p) => !phrase || p.text.includes(phrase))
       .filter((p) => !quotes || p.referenced.some((r) => r.type === "quoted" && r.id === quotes))
+      .filter((p) => !reposts || p.referenced.some((r) => r.type === "retweeted" && r.id === reposts))
       .filter((p) => !noRt || !p.referenced.some((r) => r.type === "retweeted"))
       .sort((a, b) => (BigInt(b.id) > BigInt(a.id) ? 1 : -1));
   }

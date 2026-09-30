@@ -23,7 +23,9 @@ export const launchSchema = z.object({
   description: z.string().max(280).optional().default(""),
   creatorWallet: z.string().refine(isSolanaAddress, "not a valid Solana address"),
   targetHandle: z.string(),
-  action: z.enum(["TWEET_CASHTAG", "TWEET_CONTRACT", "QUOTE_LAUNCH", "VIDEO_PHRASE", "BIO_CONTRACT"]),
+  action: z.enum(["TWEET_CASHTAG", "TWEET_CONTRACT", "QUOTE_LAUNCH", "VIDEO_PHRASE", "BIO_CONTRACT", "REPOST_POST"]),
+  /** REPOST_POST (required) / QUOTE_LAUNCH (optional): the X post to repost or quote, as a link or an id. */
+  postUrl: z.string().trim().max(300).nullish(),
   phrase: z.string().trim().max(80).nullish(),
   deadlineDays: z.number().int().min(1).max(365).optional(),
   /** SOL the creator buys in the launch transaction itself (CHAIN=solana). */
@@ -91,8 +93,18 @@ async function validate(ctx: Ctx, input: unknown) {
     throw new LaunchError("Video challenges need speech-to-text set up on the server (WHISPER_URL). Pick another challenge.");
   if (req.action === "VIDEO_PHRASE" && !(req.phrase && req.phrase.split(/\s+/).length >= 2))
     throw new LaunchError("Video bounties need a short phrase of at least 2 words");
-  if (req.action === "QUOTE_LAUNCH" && !(await platformConnected(ctx)))
-    throw new LaunchError("Quote challenges need the platform's X account connected (it publishes the launch post to quote). Pick another challenge.");
+  if ((req.action === "BIO_CONTRACT" || req.action === "REPOST_POST") && ctx.chain && ctx.chain.escrowMode !== "pool")
+    throw new LaunchError("This challenge needs ESCROW_MODE=pool");
+  // Repost / quote: the creator names the post (checked to exist); a quote can also use our own launch post.
+  let postId: string | null = null;
+  if (req.postUrl) {
+    postId = postIdFrom(req.postUrl);
+    if (!postId) throw new LaunchError("Paste the link of the post on X (x.com/…/status/…)");
+    if (!(await ctx.x.getPost(postId).catch(() => null))) throw new LaunchError("That post doesn't exist or isn't public");
+  }
+  if (req.action === "REPOST_POST" && !postId) throw new LaunchError("Paste the link of the post they must repost");
+  if (req.action === "QUOTE_LAUNCH" && !postId && !(await platformConnected(ctx)))
+    throw new LaunchError("Paste the link of the post they must quote");
 
   const target = await resolveTarget(ctx, req.targetHandle);
   if (!target.ok) throw new LaunchError(target.reason);
@@ -112,7 +124,15 @@ async function validate(ctx: Ctx, input: unknown) {
     if (dup.length) throw new LaunchError(`A live $${ticker} challenge for @${target.profile.username} already exists. Pick another ticker or challenge.`);
   }
   const days = req.deadlineDays ?? RULES.defaultDeadlineDays;
-  return { req, ticker, target: target.profile, days };
+  return { req, ticker, target: target.profile, days, postId: req.action === "REPOST_POST" || req.action === "QUOTE_LAUNCH" ? postId : null };
+}
+
+/** https://x.com/user/status/123…, twitter.com, mobile links, or the bare id. */
+export function postIdFrom(v: string): string | null {
+  const s = v.trim();
+  if (/^\d{5,25}$/.test(s)) return s;
+  const m = /(?:x|twitter)\.com\/[^/]+\/status(?:es)?\/(\d{5,25})/i.exec(s);
+  return m ? m[1] : null;
 }
 
 /**
@@ -129,12 +149,14 @@ interface LaunchRecord {
   mint: string; name: string; ticker: string; imageUrl: string | null; description: string; creatorWallet: string;
   targetXUserId: string; targetUsername: string; action: string; phrase: string | null; deadline: Date;
   pool?: string | null; launchTx?: string | null; links?: TokenLinks;
+  /** The post to repost / quote, chosen by the creator (else our own launch post for a quote). */
+  postId?: string | null;
 }
 
 /** Token + bounty rows, written together (a coin without its bounty can never exist). */
 async function record(ctx: Ctx, r: LaunchRecord) {
   const tokenId = randomUUID(), bountyId = randomUUID();
-  const launchPostId = await launchPost(ctx, { id: tokenId, ticker: r.ticker, action: r.action, phrase: r.phrase });
+  const launchPostId = r.postId ?? await launchPost(ctx, { id: tokenId, ticker: r.ticker, action: r.action, phrase: r.phrase });
   await ctx.db.tx(async (q) => {
     await q.query(
       `insert into tokens (id, mint, name, ticker, image_url, description, creator_wallet, launch_post_id, pool, launch_tx, links) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
@@ -142,7 +164,9 @@ async function record(ctx: Ctx, r: LaunchRecord) {
     );
     await q.query(
       `insert into bounties (id, token_id, target_x_user_id, action, phrase, deadline, status, last_seen_post_id) values ($1,$2,$3,$4,$5,$6,'OPEN',$7)`,
-      [bountyId, tokenId, r.targetXUserId, r.action, r.action === "VIDEO_PHRASE" ? r.phrase : null, r.deadline.toISOString(), launchPostId],
+      [bountyId, tokenId, r.targetXUserId, r.action, r.action === "VIDEO_PHRASE" ? r.phrase : null, r.deadline.toISOString(),
+       // A post chosen by the creator can be older than search's 7-day window: search from the launch time instead.
+       r.postId ? null : launchPostId],
     );
     await q.query(`insert into audit_log (bounty_id, to_status, reason) values ($1,'OPEN','launched')`, [bountyId]);
   });
@@ -154,8 +178,9 @@ async function record(ctx: Ctx, r: LaunchRecord) {
 /** SIM chain: launch instantly with a generated mint address. */
 export async function launch(ctx: Ctx, input: unknown) {
   if (ctx.chain) throw new LaunchError("On-chain mode: launch with /api/launch/prepare and your wallet's signature");
-  const { req, ticker, target, days } = await validate(ctx, input);
+  const { req, ticker, target, days, postId } = await validate(ctx, input);
   return record(ctx, {
+    postId,
     mint: bs58.encode(randomBytes(32)), name: req.name, ticker, imageUrl: req.imageUrl ?? null, description: req.description,
     creatorWallet: req.creatorWallet, targetXUserId: target.xUserId, targetUsername: target.username, action: req.action,
     phrase: req.phrase ?? null, deadline: new Date(Date.now() + days * 86400_000), links: cleanLinks(req.links),
@@ -177,7 +202,7 @@ const messageHash = (tx: Transaction) => createHash("sha256").update(tx.serializ
  */
 export async function prepareLaunch(ctx: Ctx, input: unknown) {
   if (!ctx.chain) throw new LaunchError("The API isn't in on-chain mode (CHAIN=solana)");
-  const { req, ticker, target, days } = await validate(ctx, input);
+  const { req, ticker, target, days, postId } = await validate(ctx, input);
   const mint = Keypair.generate();
   const deadline = Math.floor(Date.now() / 1000) + days * 86400;
   const firstBuy = BigInt(Math.round((req.firstBuySol ?? 0) * 1e9));
@@ -191,6 +216,7 @@ export async function prepareLaunch(ctx: Ctx, input: unknown) {
   });
   const id = randomUUID();
   const pending = {
+    postId,
     name: req.name, ticker, imageUrl: req.imageUrl ?? null, description: req.description, creatorWallet: req.creatorWallet,
     targetXUserId: target.xUserId, targetUsername: target.username, action: req.action, phrase: req.phrase ?? null,
     deadline, pool: pool.toBase58(), links: cleanLinks(req.links), firstBuyLamports: firstBuy.toString(),
@@ -263,7 +289,7 @@ export async function registerLaunch(ctx: Ctx, p: any, sig: string | null) {
   const out = await record(ctx, {
     mint: p.mint, name: i.name, ticker: i.ticker, imageUrl: i.imageUrl, description: i.description, creatorWallet: i.creatorWallet,
     targetXUserId: i.targetXUserId, targetUsername: i.targetUsername, action: i.action, phrase: i.phrase,
-    deadline: new Date(i.deadline * 1000), pool: i.pool, launchTx: sig, links: i.links ?? {},
+    deadline: new Date(i.deadline * 1000), pool: i.pool, launchTx: sig, links: i.links ?? {}, postId: i.postId ?? null,
   });
   await ctx.db.query(`delete from pending_launches where id=$1`, [p.id]);
   // The creator's first buy happened inside the launch transaction: record it like any trade

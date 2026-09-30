@@ -2,7 +2,7 @@
 // Changing this file needs approval from all three team members (CLAUDE.md §3).
 
 /** Machine-checkable bounty actions (CLAUDE.md §6.1). No free-text bounties. */
-export type BountyAction = "TWEET_CASHTAG" | "TWEET_CONTRACT" | "QUOTE_LAUNCH" | "VIDEO_PHRASE" | "BIO_CONTRACT";
+export type BountyAction = "TWEET_CASHTAG" | "TWEET_CONTRACT" | "QUOTE_LAUNCH" | "VIDEO_PHRASE" | "BIO_CONTRACT" | "REPOST_POST";
 
 /** Bounty lifecycle (CLAUDE.md §6.8). */
 export type BountyStatus =

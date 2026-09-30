@@ -38,6 +38,7 @@ export function actionText(action: BountyAction, ticker: string, phrase?: string
     case "QUOTE_LAUNCH": return "Quote the coin's launch post";
     case "VIDEO_PHRASE": return `Say “${phrase ?? ""}” in a video`;
     case "BIO_CONTRACT": return "Put the contract address in their X bio";
+    case "REPOST_POST": return "Repost the post on X";
   }
 }
 

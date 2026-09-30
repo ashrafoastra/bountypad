@@ -99,6 +99,9 @@ export default function TokenPage() {
                 </div>
               </Link>
               <div className="text-[20px] tracking-[-0.02em] leading-snug mt-4">{actionText(bounty.action, token.ticker, bounty.phrase)}</div>
+              {(bounty.action === "REPOST_POST" || bounty.action === "QUOTE_LAUNCH") && token.launchPostId && (
+                <a className="label hover:!text-ink inline-block mt-2" target="_blank" rel="noreferrer" href={`https://x.com/i/status/${token.launchPostId}`}>The post ↗</a>
+              )}
               <div className="text-sm text-mute mt-2">
                 {live ? <>Ends in <span className="num text-ink">{countdown(bounty.deadline)}</span>. If nobody does it, the pot is burned.</> : paid ? "Completed and paid." : bounty.status === "EXPIRED" ? "Expired. The pot was burned." : null}
               </div>

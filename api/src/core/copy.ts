@@ -6,6 +6,7 @@ export function actionPhrase(action: string, ticker: string, phrase?: string | n
     case "QUOTE_LAUNCH": return "quote this post";
     case "VIDEO_PHRASE": return `say "${phrase ?? ""}" in a video on X`;
     case "BIO_CONTRACT": return "put the contract address in their X bio";
+    case "REPOST_POST": return "repost the post";
     default: return action;
   }
 }

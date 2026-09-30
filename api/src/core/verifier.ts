@@ -44,6 +44,10 @@ function contentCheck(post: XPost, ctx: VerifyContext): CheckResult {
       const v = post.media.find((m) => m.type === "video");
       return { id: "CONTENT", label: "Has a native video", pass: !!v && !!v.mp4Url };
     }
+    case "REPOST_POST": {
+      const ok = !!ctx.launchPostId && post.referenced.some((r) => r.type === "retweeted" && r.id === ctx.launchPostId);
+      return { id: "CONTENT", label: "Reposts the exact post", pass: ok };
+    }
     case "BIO_CONTRACT": {
       // The bio text, or a link in the bio / profile website (X shortens links with t.co).
       const ok = post.text.includes(ctx.mint) || (post.urls ?? []).some((u) => u.includes(ctx.mint));
@@ -74,12 +78,14 @@ export function verifyPost(post: XPost, ctx: VerifyContext): VerifyResult {
     ...(ctx.deadline
       ? [{ id: "BEFORE_DEADLINE" as const, label: "Posted before the deadline", pass: Date.parse(post.createdAt) <= Date.parse(ctx.deadline) }]
       : []),
-    {
-      id: "POST_TYPE",
-      label: "Original post or quote (no reposts or replies)",
-      pass: !isRetweet && !isReply,
-      detail: isRetweet ? "repost" : isReply ? "reply" : undefined,
-    },
+    ctx.action === "REPOST_POST"
+      ? { id: "POST_TYPE" as const, label: "A repost", pass: isRetweet }
+      : {
+          id: "POST_TYPE" as const,
+          label: "Original post or quote (no reposts or replies)",
+          pass: !isRetweet && !isReply,
+          detail: isRetweet ? "repost" : isReply ? "reply" : undefined,
+        },
     contentCheck(post, ctx),
   ];
   if (ctx.action === "VIDEO_PHRASE") {

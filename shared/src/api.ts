@@ -62,6 +62,8 @@ export interface LaunchRequest {
   firstBuySol?: number;
   /** Optional social links (https). Each must be on its platform's domain. */
   links?: TokenLinks;
+  /** REPOST_POST / QUOTE_LAUNCH: the X post to repost or quote (link or id). */
+  postUrl?: string | null;
 }
 
 /** GET /api/health: which parts are real in this deployment. */

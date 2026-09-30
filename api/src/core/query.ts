@@ -20,6 +20,9 @@ export function buildSearchQuery(q: QueryInput): string | null {
     case "TWEET_CONTRACT":
       // The address as text, or inside a link (t.co hides links; url: matches the expanded URL).
       return `${from} ("${q.mint}" OR url:"${q.mint}") -is:retweet`;
+    case "REPOST_POST":
+      // Reposts are posts too: search finds them with this operator (and without -is:retweet).
+      return q.launchPostId ? `retweets_of_tweet_id:${q.launchPostId} ${from}` : null;
     case "QUOTE_LAUNCH":
       return q.launchPostId ? `quotes_of_tweet_id:${q.launchPostId} ${from}` : null;
     case "VIDEO_PHRASE":
