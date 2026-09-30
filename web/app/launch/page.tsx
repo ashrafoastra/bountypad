@@ -28,7 +28,6 @@ const ACTIONS: { id: BountyAction; title: string; desc: string }[] = [
   { id: "TWEET_CASHTAG", title: "Post the cashtag", desc: "They post a message on X containing $TICKER." },
   { id: "TWEET_CONTRACT", title: "Post the contract address", desc: "They post the coin's contract address on X." },
   { id: "REPOST_POST", title: "Repost a post", desc: "They repost the X post you choose. We check their reposts by the post's id." },
-  { id: "QUOTE_LAUNCH", title: "Quote a post", desc: "They quote the X post you choose." },
   { id: "BIO_CONTRACT", title: "Put the contract address in their bio", desc: "They add the coin's contract address to their X bio. Checked again a moment later: it must still be there." },
 ];
 
