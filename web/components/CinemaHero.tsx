@@ -4,12 +4,21 @@
  * cinema curtain, a running UTC timecode, and a scroll-out: the frame shrinks and the title lifts
  * away as you move into the site. The film comes from NEXT_PUBLIC_HERO_VIDEO or /hero/hero.mp4.
  */
-import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { EASE, Magnetic, SplitWords } from "./motion";
 import { SplitButton } from "./ui";
 
 const SRC = process.env.NEXT_PUBLIC_HERO_VIDEO || "/hero/hero.mp4";
+
+/** The trailer's chapters, in step with its shots (seconds). Our own type over the film: no AI text. */
+const CHAPTERS: [number, string, string][] = [
+  [0, "01", "Launch a coin in one signature."],
+  [3, "02", "Every trade pays a fee."],
+  [6, "03", "The fee fills a pot, on Solana."],
+  [9, "04", "Name anyone on X. They do it in public."],
+  [12, "05", "Verified automatically. Paid instantly."],
+];
 
 function Timecode() {
   const [t, setT] = useState("");
@@ -30,6 +39,7 @@ export function CinemaHero({ light }: { light: boolean }) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLElement>(null);
   const [videoOk, setVideoOk] = useState(true);
+  const [chapter, setChapter] = useState(0);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
   const scale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 0.88]);
   const lift = useTransform(scrollYProgress, [0, 1], ["0%", reduce ? "0%" : "-35%"]);
@@ -41,7 +51,8 @@ export function CinemaHero({ light }: { light: boolean }) {
       <motion.div className="absolute inset-0 overflow-hidden bg-[#0a0a0a] origin-top" style={{ scale }}>
         {videoOk && (
           <video className="absolute inset-0 w-full h-full object-cover" src={SRC} autoPlay muted loop playsInline preload="auto"
-            onError={() => setVideoOk(false)} />
+            onError={() => setVideoOk(false)}
+            onTimeUpdate={(e) => { const t = e.currentTarget.currentTime; let c = 0; CHAPTERS.forEach(([at], i) => { if (t >= at) c = i; }); setChapter(c); }} />
         )}
         {/* without a film: a slow light sweeping a dark stage */}
         {!videoOk && (
@@ -73,6 +84,21 @@ export function CinemaHero({ light }: { light: boolean }) {
           <span key={k} className={`absolute w-6 h-6 border-mute/60 ${k[0] === "t" ? "top-12 border-t" : "bottom-8 border-b"} ${k[1] === "l" ? "left-4 sm:left-8 border-l" : "right-4 sm:right-8 border-r"}`} />
         ))}
       </motion.div>
+
+      {/* the trailer's chapter, synced with the film */}
+      {videoOk && (
+        <motion.div className="absolute z-10 right-4 sm:right-8 top-20 sm:top-24 w-[min(420px,80vw)] text-right" style={{ opacity: fade }}>
+          <AnimatePresence mode="wait">
+            <motion.div key={chapter} initial={{ opacity: 0, y: 10, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -8, filter: "blur(6px)" }} transition={{ duration: 0.6, ease: EASE }}>
+              <div className="font-mono text-[11px] tracking-[.1em] text-mute">{CHAPTERS[chapter][1]} / 05</div>
+              <div className="text-[20px] sm:text-[26px] tracking-[-0.02em] leading-tight mt-2">{CHAPTERS[chapter][2]}</div>
+            </motion.div>
+          </AnimatePresence>
+          <div className="mt-4 ml-auto flex gap-1.5 w-40">
+            {CHAPTERS.map((_, i) => <span key={i} className={`h-px flex-1 transition-colors duration-500 ${i <= chapter ? "bg-ink" : "bg-line-2"}`} />)}
+          </div>
+        </motion.div>
+      )}
 
       <motion.div className="relative z-10 h-full max-w-[1320px] mx-auto px-4 sm:px-8 flex flex-col justify-end pb-16 sm:pb-20" style={{ y: lift, opacity: fade }}>
         <motion.div className="label flex items-center gap-3 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 1.2 }}>
