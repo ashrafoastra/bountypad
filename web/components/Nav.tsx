@@ -65,9 +65,17 @@ export function Nav() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // Out of the way while reading down the page; back as soon as you scroll up.
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => { const y = window.scrollY; setHidden(y > 160 && y > last + 4); if (y < last - 4 || y < 160) setHidden(false); last = y; };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const links = [...LINKS, ...(health?.devTools && health?.xMode === "mock" ? [{ href: "/dev", label: "Dev" }] : [])];
   return (
-    <header className="sticky top-0 z-40 bg-bg/85 backdrop-blur-md border-b border-line">
+    <header className={`sticky top-0 z-40 bg-bg/80 backdrop-blur-xl border-b border-line transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${hidden ? "-translate-y-full" : ""}`}>
       <div className="max-w-[1320px] mx-auto px-4 sm:px-8 h-16 flex items-center gap-2 sm:gap-8">
         <Link href="/" aria-label="Bounty Pad home" className="shrink-0">
           <span className="hidden sm:inline"><Logo /></span>
@@ -78,8 +86,9 @@ export function Nav() {
           {links.map((l) => {
             const on = l.href === "/" ? path === "/" : path.startsWith(l.href);
             return (
-              <Link key={l.href} href={l.href} className={`px-3 py-2 transition-colors whitespace-nowrap ${on ? "text-ink" : "text-mute hover:text-ink"}`}>
+              <Link key={l.href} href={l.href} className={`group relative px-3 py-2 transition-colors whitespace-nowrap ${on ? "text-ink" : "text-mute hover:text-ink"}`}>
                 {l.label}
+                <span className={`absolute left-3 right-3 -bottom-px h-px bg-ink origin-left transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${on ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
               </Link>
             );
           })}

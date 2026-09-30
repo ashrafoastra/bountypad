@@ -6,6 +6,7 @@ import { Nav } from "@/components/Nav";
 import Link from "next/link";
 import { Providers } from "@/lib/auth";
 import { Logo } from "@/components/ui";
+import { Cursor, Grain, SmoothScroll } from "@/components/motion";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
@@ -22,9 +23,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="min-h-screen">
         <Providers>
+          <SmoothScroll />
+          <Cursor />
+          <Grain />
           <Nav />
           <main className="max-w-[1320px] mx-auto px-4 sm:px-8 py-8 sm:py-10">{children}</main>
-          <footer className="mt-24 border-t border-line">
+          <footer className="mt-24 border-t border-line overflow-hidden">
             <div className="max-w-[1320px] mx-auto px-4 sm:px-8 py-12 grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
               <div className="flex flex-col gap-4 max-w-sm">
                 <Logo />
@@ -42,9 +46,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/#compare" className="text-mute hover:text-ink">Paid for the action</Link>
               </div>
             </div>
+            <div aria-hidden className="max-w-[1320px] mx-auto px-4 sm:px-8 select-none">
+              <div className="display text-[19vw] lg:text-[250px] leading-[0.8] tracking-[-0.06em] text-panel-3 whitespace-nowrap translate-y-[12%]">Bounty Pad</div>
+            </div>
             <div className="border-t border-line">
               <div className="max-w-[1320px] mx-auto px-4 sm:px-8 py-5 flex flex-col sm:flex-row gap-2 justify-between label !normal-case !tracking-normal !text-[12px] !text-dim">
-                <span>Devnet preview</span>
+                <span>© 2026 Bounty Pad · Solana</span>
                 <span>Coins are not endorsed by the people they name. Nothing here is financial advice.</span>
               </div>
             </div>

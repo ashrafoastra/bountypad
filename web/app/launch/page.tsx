@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { actionText } from "@/lib/format";
 import { Avatar, Brackets, Crosses, ErrorNote, TokenImage, Verified, XIcon } from "@/components/ui";
 import { ImageUpload } from "@/components/ImageUpload";
+import { EASE, SplitWords } from "@/components/motion";
 import { SocialIcon } from "@/components/SocialLinks";
 import type { LinkKind } from "@bountypad/shared";
 
@@ -116,21 +117,21 @@ export default function Launch() {
           </div>
         )}
         <div className="label">New challenge coin</div>
-        <h1 className="display text-[44px] sm:text-[64px] mt-5">Launch a coin</h1>
-        <p className="text-mute text-[17px] mt-5 max-w-xl leading-relaxed">Create the coin and its challenge together. The challenge is written on-chain and can never change.</p>
+        <h1 className="display text-[48px] sm:text-[80px] mt-5"><SplitWords trigger="mount" delay={0.1} lines={["Launch a coin"]} /></h1>
+        <p className="text-mute text-[17px] mt-5 max-w-xl leading-relaxed">Create the coin and its challenge together. The challenge is fixed at launch and can never change.</p>
 
         <div className="grid grid-cols-4 border border-line mt-10 mb-10">
           {STEPS.map((s, i) => (
             <button key={s} onClick={() => i < step || valid.slice(0, i).every(Boolean) ? setStep(i) : null}
               className={`relative flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 h-auto sm:h-12 px-3 sm:px-4 py-2.5 sm:py-0 text-left border-line transition-colors ${i ? "border-l" : ""} ${i === step ? "bg-panel-2 text-ink" : i < step ? "text-ink hover:bg-panel" : "text-dim"}`}>
               <span className="font-mono text-[11px]">{i < step ? "✓" : String(i + 1).padStart(2, "0")}</span><span className="text-[13px] sm:text-sm">{s}</span>
-              {i === step && <span className="absolute left-0 right-0 bottom-0 h-px bg-ink" />}
+              {i === step && <motion.span layoutId="launch-step" className="absolute left-0 right-0 bottom-0 h-px bg-ink" transition={{ duration: 0.6, ease: EASE }} />}
             </button>
           ))}
         </div>
 
         <AnimatePresence mode="wait">
-          <motion.div key={step} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="flex flex-col gap-5">
+          <motion.div key={step} initial={{ opacity: 0, x: 24, filter: "blur(4px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} exit={{ opacity: 0, x: -24, filter: "blur(4px)" }} transition={{ duration: 0.45, ease: EASE }} className="flex flex-col gap-5">
             {step === 0 && (<>
               <Field label="Coin name"><input className="input" maxLength={32} value={f.name} onChange={set("name")} placeholder="Rocket" /></Field>
               <Field label="Ticker" hint={`1 to ${RULES.tickerMaxLength} letters. X only detects short cashtags.`} error={tErr}>

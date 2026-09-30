@@ -6,6 +6,7 @@ import { api, useHealth } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtSol, short } from "@/lib/format";
 import { Avatar, Crosses, ErrorNote, StatusPill, Verified, XIcon } from "@/components/ui";
+import { SplitWords } from "@/components/motion";
 
 type Me = { profile: Profile | null; bounties: TokenSummary[]; payouts: Payout[] };
 type SimUser = { id: string; username: string; name: string; avatarUrl: string | null; verified: boolean; protected: boolean; parody: boolean };
@@ -47,7 +48,7 @@ export default function Claim() {
     <div className="max-w-2xl mx-auto flex flex-col items-center text-center gap-6 pt-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/brand/logo.svg" alt="" width={56} height={56} />
-      <h1 className="display text-[40px] sm:text-[64px] text-balance">Did someone put a bounty on you?</h1>
+      <h1 className="display text-[44px] sm:text-[80px]"><SplitWords trigger="mount" delay={0.1} lines={["Did someone put", "a bounty on you?"]} lineClass={["", "text-mute"]} /></h1>
       <p className="text-mute text-[17px] leading-relaxed max-w-xl">Log in with X to see every coin that names you, collect the ones you've completed, or opt out entirely.</p>
       {health?.xLogin ? (
         <>

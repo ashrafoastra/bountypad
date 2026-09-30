@@ -57,7 +57,8 @@ export const STATUS: Record<BountyStatus, { label: string; tone: "green" | "gold
 const SUB = "₀₁₂₃₄₅₆₇₈₉";
 /** Tiny prices the way trading terminals show them: 0.0₇2795 = 0.00000002795. */
 export function fmtPrice(v: number | null | undefined) {
-  if (v === null || v === undefined || !Number.isFinite(v) || v <= 0) return "—";
+  if (v === 0) return "0";
+  if (v === null || v === undefined || !Number.isFinite(v) || v < 0) return "—";
   if (v >= 1) return v.toLocaleString("en-US", { maximumFractionDigits: 4 });
   if (v >= 0.001) return v.toFixed(6).replace(/0+$/, "");
   // zeros between the decimal point and the first significant digit

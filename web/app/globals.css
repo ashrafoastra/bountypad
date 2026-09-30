@@ -119,3 +119,36 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .live-dot, .flow-line { animation: none !important; }
 }
+
+/* ---- motion system support (components/motion.tsx) ---- */
+/* film grain: an SVG noise tile, screen-blended at a few percent */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 1.2s steps(6) infinite;
+}
+@keyframes grain {
+  0% { transform: translate(0, 0) } 20% { transform: translate(-3%, 2%) } 40% { transform: translate(2%, -3%) }
+  60% { transform: translate(-2%, -1%) } 80% { transform: translate(3%, 3%) } 100% { transform: translate(0, 0) }
+}
+.grain { inset: -10% !important; }
+
+/* the reticle cursor replaces the system pointer on fine pointers */
+html.has-cursor, html.has-cursor * { cursor: none !important; }
+
+/* a light that follows the pointer over hairline frames */
+.spot { isolation: isolate; }
+.spot::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity .5s ease;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgb(242 241 238 / .06), transparent 60%);
+}
+.spot:hover::after { opacity: 1; }
+
+/* outlined display type for the closing tape */
+.text-outline { color: transparent; -webkit-text-stroke: 1px var(--color-line-2); }
+
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+
+@media (prefers-reduced-motion: reduce) {
+  .grain { animation: none; }
+}
