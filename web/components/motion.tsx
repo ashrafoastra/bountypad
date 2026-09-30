@@ -259,19 +259,19 @@ export function Intro() {
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
   }, []);
-  const draw = (d: number) => ({ initial: { pathLength: 0, opacity: 0 }, animate: { pathLength: 1, opacity: 1 }, transition: { duration: 0.9, delay: d, ease: EASE_IN_OUT } });
   return (
     <AnimatePresenceShim show={show}>
       <motion.div className="fixed inset-0 z-[200] pointer-events-none" exit={{ opacity: 1 }}>
         <motion.div className="absolute left-0 right-0 top-0 h-1/2 bg-[#0a0a0a]" exit={{ y: "-100%" }} transition={{ duration: 1, ease: [0.76, 0, 0.24, 1] }} />
         <motion.div className="absolute left-0 right-0 bottom-0 h-1/2 bg-[#0a0a0a]" exit={{ y: "100%" }} transition={{ duration: 1, ease: [0.76, 0, 0.24, 1] }} />
         <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8" exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.4 }}>
-          <svg viewBox="0 0 64 64" width="96" height="96" fill="none" stroke="#f2f1ee" strokeWidth="2.6" strokeLinecap="square">
-            <motion.circle cx="32" cy="32" r="14.5" {...draw(0)} />
-            <motion.path d="M32 7v9" {...draw(0.35)} /><motion.path d="M32 48v9" {...draw(0.4)} />
-            <motion.path d="M7 32h9" {...draw(0.45)} /><motion.path d="M48 32h9" {...draw(0.5)} />
-            <motion.path d="M25.5 32.5l4.5 4.5 8.5-9" {...draw(0.8)} />
-          </svg>
+          <div className="display text-[44px] sm:text-[88px] leading-[0.9] text-center">
+            {["Make them", "earn it."].map((line, li) => (
+              <div key={line} className={`overflow-hidden ${li ? "text-mute" : ""}`}>
+                <motion.div initial={{ y: "105%" }} animate={{ y: "0%" }} transition={{ duration: 0.9, delay: 0.1 + li * 0.12, ease: EASE }}>{line}</motion.div>
+              </div>
+            ))}
+          </div>
           <div className="flex items-center gap-4 font-mono text-[11px] tracking-[.14em] uppercase text-mute">
             <span>Bounty Pad</span><span className="w-10 h-px bg-line-2 relative overflow-hidden"><motion.span className="absolute inset-y-0 left-0 bg-ink" style={{ width: `${n}%` }} /></span><span className="num w-8 text-right text-ink">{String(n).padStart(3, "0")}</span>
           </div>

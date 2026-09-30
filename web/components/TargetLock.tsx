@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { TokenSummary } from "@bountypad/shared";
 import { actionText, fmtUsd, sol } from "@/lib/format";
 import { EASE } from "./motion";
-import { Coin3D } from "./Coin3D";
+import { PotField } from "./PotField";
 
 const HERO_VIDEO = process.env.NEXT_PUBLIC_HERO_VIDEO || "";
 const LIVE = ["OPEN", "DETECTED_CONFIRMING", "VOTING", "VERIFIED", "CHALLENGE_WINDOW"];
@@ -46,32 +46,11 @@ export function TargetLock({ items, solUsd }: { items: TokenSummary[] | undefine
           initial={{ top: "-15%" }} animate={{ top: "110%" }} transition={{ duration: 4.8, repeat: Infinity, ease: "linear" }} />
       )}
 
-      {/* crosshair lines to the edges */}
-      <div aria-hidden className="absolute left-1/2 top-0 bottom-0 w-px bg-line/80" />
-      <div aria-hidden className="absolute top-1/2 left-0 right-0 h-px bg-line/80" />
+      {/* the pot: a living sphere of points, fed by streams of trades */}
+      <PotField className="absolute inset-0" />
 
       {/* the reticle */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] sm:w-[360px] sm:h-[360px]">
-        <motion.svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full text-mute" animate={reduce ? undefined : { rotate: 360 }} transition={{ duration: 90, repeat: Infinity, ease: "linear" }}>
-          {Array.from({ length: 72 }).map((_, k) => (
-            <line key={k} x1="100" y1="4" x2="100" y2={k % 6 === 0 ? 12 : 8} stroke="currentColor" strokeWidth={k % 6 === 0 ? 0.7 : 0.35} transform={`rotate(${k * 5} 100 100)`} opacity={k % 6 === 0 ? 0.9 : 0.45} />
-          ))}
-          <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" strokeWidth="0.3" opacity="0.5" />
-        </motion.svg>
-        <motion.svg viewBox="0 0 200 200" className="absolute inset-[14%] w-[72%] h-[72%] text-dim" animate={reduce ? undefined : { rotate: -360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }}>
-          <circle cx="100" cy="100" r="96" fill="none" stroke="currentColor" strokeWidth="0.6" strokeDasharray="2 6" />
-        </motion.svg>
-
-        {/* no target yet: the Bounty Pad coin turns in the sights */}
-        {!cur && <Coin3D className="absolute inset-[6%]" />}
-
-        {/* bearings: fixed, while the rings turn */}
-        <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" aria-hidden>
-          {[["000", 100, -6], ["090", 210, 102], ["180", 100, 212], ["270", -10, 102]].map(([t, x, y]) => (
-            <text key={t as string} x={x as number} y={y as number} textAnchor="middle" className="fill-[#6e6e68]" style={{ font: "500 6px var(--font-geist-mono)", letterSpacing: ".08em" }}>{t}</text>
-          ))}
-        </svg>
-
         {/* locking brackets: fly in from wide to tight on every new target */}
         <AnimatePresence mode="popLayout">
           <motion.div key={cur?.token.id ?? "scan"} className="absolute inset-[27%]"
