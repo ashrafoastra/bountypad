@@ -6,7 +6,7 @@ import { Nav } from "@/components/Nav";
 import Link from "next/link";
 import { Providers } from "@/lib/auth";
 import { Logo } from "@/components/ui";
-import { Cursor, Grain, SmoothScroll } from "@/components/motion";
+import { Cursor, Grain, Intro, SmoothScroll } from "@/components/motion";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SmoothScroll />
           <Cursor />
           <Grain />
+          <Intro />
           <Nav />
           <main className="max-w-[1320px] mx-auto px-4 sm:px-8 py-8 sm:py-10">{children}</main>
           <footer className="mt-24 border-t border-line overflow-hidden">

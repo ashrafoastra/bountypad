@@ -40,6 +40,20 @@ export function CinemaHero({ light }: { light: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const [videoOk, setVideoOk] = useState(true);
   const [chapter, setChapter] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const vid = useRef<HTMLVideoElement>(null);
+  // The error can fire before hydration: check the element's own state once mounted.
+  useEffect(() => {
+    const v = vid.current;
+    if (!v) return;
+    if (v.error || v.networkState === 3) setVideoOk(false);
+    else if (!v.paused && v.readyState > 2) setPlaying(true);
+  }, []);
+  // When the branded intro plays first (once per visit), the opening waits for it.
+  const [D] = useState(() => {
+    try { return typeof window !== "undefined" && location.pathname === "/" && sessionStorage.getItem("bp-intro") !== "1" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1.5 : 0; }
+    catch { return 0; }
+  });
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
   const scale = useTransform(scrollYProgress, [0, 1], [1, reduce ? 1 : 0.88]);
   const lift = useTransform(scrollYProgress, [0, 1], ["0%", reduce ? "0%" : "-35%"]);
@@ -50,7 +64,7 @@ export function CinemaHero({ light }: { light: boolean }) {
     <section ref={ref} className="relative w-screen left-1/2 -translate-x-1/2 -mt-8 sm:-mt-10 h-[calc(100svh-64px)] min-h-[620px]">
       <motion.div className="absolute inset-0 overflow-hidden bg-[#0a0a0a] origin-top" style={{ scale }}>
         {videoOk && (
-          <video className="absolute inset-0 w-full h-full object-cover" src={SRC} autoPlay muted loop playsInline preload="auto"
+          <video ref={vid} className="absolute inset-0 w-full h-full object-cover" src={SRC} onPlaying={() => setPlaying(true)} autoPlay muted loop playsInline preload="auto"
             onError={() => setVideoOk(false)}
             onTimeUpdate={(e) => { const t = e.currentTarget.currentTime; let c = 0; CHAPTERS.forEach(([at], i) => { if (t >= at) c = i; }); setChapter(c); }} />
         )}
@@ -69,8 +83,8 @@ export function CinemaHero({ light }: { light: boolean }) {
 
       {/* letterbox: parts on load */}
       {!reduce && (<>
-        <motion.div aria-hidden className="absolute left-0 right-0 top-0 h-1/2 bg-[#0a0a0a] z-20 origin-top" initial={{ scaleY: 1 }} animate={{ scaleY: 0 }} transition={{ duration: 1.6, delay: 0.2, ease: [0.76, 0, 0.24, 1] }} />
-        <motion.div aria-hidden className="absolute left-0 right-0 bottom-0 h-1/2 bg-[#0a0a0a] z-20 origin-bottom" initial={{ scaleY: 1 }} animate={{ scaleY: 0 }} transition={{ duration: 1.6, delay: 0.2, ease: [0.76, 0, 0.24, 1] }} />
+        <motion.div aria-hidden className="absolute left-0 right-0 top-0 h-1/2 bg-[#0a0a0a] z-20 origin-top" initial={{ scaleY: 1 }} animate={{ scaleY: 0 }} transition={{ duration: 1.6, delay: 0.2 + D, ease: [0.76, 0, 0.24, 1] }} />
+        <motion.div aria-hidden className="absolute left-0 right-0 bottom-0 h-1/2 bg-[#0a0a0a] z-20 origin-bottom" initial={{ scaleY: 1 }} animate={{ scaleY: 0 }} transition={{ duration: 1.6, delay: 0.2 + D, ease: [0.76, 0, 0.24, 1] }} />
       </>)}
 
       {/* frame furniture */}
@@ -86,7 +100,7 @@ export function CinemaHero({ light }: { light: boolean }) {
       </motion.div>
 
       {/* the trailer's chapter, synced with the film */}
-      {videoOk && (
+      {videoOk && playing && (
         <motion.div className="absolute z-10 right-4 sm:right-8 top-20 sm:top-24 w-[min(420px,80vw)] text-right" style={{ opacity: fade }}>
           <AnimatePresence mode="wait">
             <motion.div key={chapter} initial={{ opacity: 0, y: 10, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -8, filter: "blur(6px)" }} transition={{ duration: 0.6, ease: EASE }}>
@@ -101,17 +115,17 @@ export function CinemaHero({ light }: { light: boolean }) {
       )}
 
       <motion.div className="relative z-10 h-full max-w-[1320px] mx-auto px-4 sm:px-8 flex flex-col justify-end pb-16 sm:pb-20" style={{ y: lift, opacity: fade }}>
-        <motion.div className="label flex items-center gap-3 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 1.2 }}>
+        <motion.div className="label flex items-center gap-3 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 1.2 + D }}>
           <span className="w-8 h-px bg-mute" />Meme coins with a challenge · {light ? "Pot held on Solana" : "On-chain escrow"}
         </motion.div>
         <h1 className="display text-[64px] sm:text-[120px] lg:text-[168px] leading-[0.86]">
-          <SplitWords trigger="mount" delay={1.0} stagger={0.08} lines={["Make them", "earn it."]} lineClass={["", "text-mute"]} />
+          <SplitWords trigger="mount" delay={1.0 + D} stagger={0.08} lines={["Make them", "earn it."]} lineClass={["", "text-mute"]} />
         </h1>
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-          <motion.p className="text-[17px] sm:text-[19px] text-mute max-w-xl leading-relaxed" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 1.6, ease: EASE }}>
+          <motion.p className="text-[17px] sm:text-[19px] text-mute max-w-xl leading-relaxed" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 1.6 + D, ease: EASE }}>
             Launch a coin, name anyone on X, set the challenge. Every trade grows the pot. It pays out <span className="text-ink">only when they do it</span>, verified automatically.
           </motion.p>
-          <motion.div className="flex flex-wrap gap-3" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 1.75, ease: EASE }}>
+          <motion.div className="flex flex-wrap gap-3" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 1.75 + D, ease: EASE }}>
             <Magnetic><SplitButton href="/launch">Launch a coin</SplitButton></Magnetic>
             <Magnetic strength={0.2}><a href="#challenges" className="btn btn-outline backdrop-blur-sm bg-black/20">Explore challenges</a></Magnetic>
           </motion.div>

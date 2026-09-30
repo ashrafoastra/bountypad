@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { TokenSummary } from "@bountypad/shared";
 import { actionText, fmtUsd, sol } from "@/lib/format";
 import { EASE } from "./motion";
+import { Coin3D } from "./Coin3D";
 
 const HERO_VIDEO = process.env.NEXT_PUBLIC_HERO_VIDEO || "";
 const LIVE = ["OPEN", "DETECTED_CONFIRMING", "VOTING", "VERIFIED", "CHALLENGE_WINDOW"];
@@ -61,6 +62,9 @@ export function TargetLock({ items, solUsd }: { items: TokenSummary[] | undefine
           <circle cx="100" cy="100" r="96" fill="none" stroke="currentColor" strokeWidth="0.6" strokeDasharray="2 6" />
         </motion.svg>
 
+        {/* no target yet: the Bounty Pad coin turns in the sights */}
+        {!cur && <Coin3D className="absolute inset-[6%]" />}
+
         {/* bearings: fixed, while the rings turn */}
         <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" aria-hidden>
           {[["000", 100, -6], ["090", 210, 102], ["180", 100, 212], ["270", -10, 102]].map(([t, x, y]) => (
@@ -73,18 +77,16 @@ export function TargetLock({ items, solUsd }: { items: TokenSummary[] | undefine
           <motion.div key={cur?.token.id ?? "scan"} className="absolute inset-[27%]"
             initial={reduce ? false : { scale: 1.9, opacity: 0, rotate: -12 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} exit={{ scale: 0.7, opacity: 0 }}
             transition={{ duration: 1.1, ease: EASE }}>
-            {(["tl", "tr", "bl", "br"] as const).map((k) => (
+            {cur && (["tl", "tr", "bl", "br"] as const).map((k) => (
               <span key={k} className={`absolute w-5 h-5 border-ink ${k[0] === "t" ? "top-0 border-t" : "bottom-0 border-b"} ${k[1] === "l" ? "left-0 border-l" : "right-0 border-r"}`} />
             ))}
-            <div className="absolute inset-[10%] overflow-hidden bg-panel-2">
+            <div className={`absolute inset-[10%] overflow-hidden ${cur ? "bg-panel-2" : ""}`}>
               {cur?.target.avatarUrl ? (
                 <motion.img src={cur.target.avatarUrl} alt="" className="w-full h-full object-cover"
                   initial={reduce ? false : { filter: "grayscale(1) contrast(1.2)", scale: 1.15 }} animate={{ filter: "grayscale(0) contrast(1)", scale: 1 }} transition={{ duration: 1.6, delay: 0.5, ease: EASE }} />
               ) : cur ? (
                 <div className="w-full h-full flex items-center justify-center text-[40px] tracking-[-0.04em] text-mute">{cur.target.name.slice(0, 1)}</div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center"><span className="w-2 h-2 bg-ink live-dot" /></div>
-              )}
+              ) : null}
             </div>
           </motion.div>
         </AnimatePresence>

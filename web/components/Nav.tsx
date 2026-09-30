@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Logo, LogoMark } from "./ui";
 import { useHealth } from "@/lib/api";
 import { Account } from "./Account";
+import { Scramble } from "./motion";
 
 const LINKS = [
   { href: "/", label: "Explore" },
@@ -87,7 +88,7 @@ export function Nav() {
             const on = l.href === "/" ? path === "/" : path.startsWith(l.href);
             return (
               <Link key={l.href} href={l.href} className={`group relative px-3 py-2 transition-colors whitespace-nowrap ${on ? "text-ink" : "text-mute hover:text-ink"}`}>
-                {l.label}
+                <Scramble text={l.label} />
                 <span className={`absolute left-3 right-3 -bottom-px h-px bg-ink origin-left transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${on ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`} />
               </Link>
             );
