@@ -10,6 +10,7 @@ import { Brackets, Change, Counter, Crosses, Skeleton, SplitButton, TokenImage }
 import { FeedItem, TokenCard, TokenRow, TokenTableHead } from "@/components/cards";
 import { explorer } from "@/lib/chain";
 import { TargetLock } from "@/components/TargetLock";
+import { CinemaHero } from "@/components/CinemaHero";
 import { EASE, Magnetic, Reveal, SplitWords, Stagger, VelocityMarquee, useSectionProgress, useSpotlight } from "@/components/motion";
 
 const LIVE = ["OPEN", "DETECTED_CONFIRMING", "VOTING"];
@@ -48,8 +49,9 @@ function Home() {
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28">
-      {!q && <Hero stats={stats} light={light} targets={byPot ?? undefined} solUsd={solUsd} />}
+      {!q && <CinemaHero light={light} />}
       {!q && <LiveTape items={byTrend ?? undefined} />}
+      {!q && <Hero stats={stats} light={light} targets={byPot ?? undefined} solUsd={solUsd} />}
 
       {official.length > 0 && <Official items={official} solUsd={solUsd} />}
 
@@ -132,46 +134,35 @@ function Home() {
 function Hero({ stats, light, targets, solUsd }: { stats: Stats | null; light: boolean; targets: TokenSummary[] | undefined; solUsd: number }) {
   return (
     <section className="relative">
-      <div className="frame grid lg:grid-cols-[1.18fr_1fr] overflow-hidden">
+      <div className="frame grid lg:grid-cols-[1fr_1.1fr] overflow-hidden">
         <Crosses />
-        <div className="relative p-6 sm:p-10 lg:p-14 flex flex-col justify-between gap-14 lg:border-r border-line min-w-0">
+        <div className="relative p-6 sm:p-10 lg:p-14 flex flex-col justify-between gap-12 lg:border-r border-line min-w-0">
           <div>
-            <motion.div className="label flex items-center gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.1 }}>
-              <span className="w-6 h-px bg-mute" />Solana · Meteora bonding curve · {light ? "Pot held on-chain" : "On-chain escrow"}
-            </motion.div>
-            <h1 className="display text-[60px] sm:text-[96px] lg:text-[118px] mt-9">
-              <SplitWords trigger="mount" delay={0.15} lines={["Make them", "earn it."]} lineClass={["", "text-mute"]} />
-            </h1>
-            <motion.p className="text-mute text-[17px] sm:text-lg mt-9 max-w-xl leading-relaxed" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 0.7, ease: EASE }}>
-              Launch a meme coin with a challenge for anyone on X. Every trade adds to a pot {light ? "held on Solana in the coin's own pool" : "locked in an escrow program"},
-              and it pays out <span className="text-ink">only when they do it</span>, verified automatically.
-            </motion.p>
+            <Reveal><div className="label mb-5 flex items-center gap-3"><span className="live-dot" />Live target</div></Reveal>
+            <h2 className="display text-[44px] sm:text-[64px]"><SplitWords lines={["Every coin is", "a public challenge."]} lineClass={["", "text-mute"]} /></h2>
+            <Reveal delay={0.15}>
+              <p className="text-mute text-[17px] mt-8 max-w-lg leading-relaxed">
+                The biggest pots, locked on in turn. A share of every trade {light ? "waits in the coin's own pool on Solana" : "is locked in an escrow program"}, and nobody can take it until the person named does it.
+              </p>
+            </Reveal>
           </div>
-          <motion.div className="flex flex-wrap items-center gap-3" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 0.85, ease: EASE }}>
-            <Magnetic><SplitButton href="/launch">Launch a coin</SplitButton></Magnetic>
-            <Magnetic strength={0.2}><a href="#how" className="btn btn-outline">How it works</a></Magnetic>
-          </motion.div>
+          <div className="grid grid-cols-2 border-t border-l border-line">
+            {([
+              [light ? "Waiting in pots" : "Locked in escrow", stats ? sol(stats.lockedLamports) : 0, 3, "SOL"],
+              ["Paid for actions", stats ? sol(stats.paidLamports) : 0, 3, "SOL"],
+              ["Live challenges", stats?.liveCoins ?? 0, 0, ""],
+              ["Completed", stats?.bountiesPaid ?? 0, 0, ""],
+            ] as const).map(([label, v, dp, unit]) => (
+              <div key={label} className="p-5 border-r border-b border-line">
+                <div className="label">{label}</div>
+                <div className="num text-[26px] sm:text-[32px] mt-3 whitespace-nowrap tracking-[-0.04em]"><Counter value={v} format={(n) => n.toFixed(dp)} />{unit && <span className="text-mute text-sm ml-2">{unit}</span>}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <motion.div className="border-t lg:border-t-0 border-line" initial={{ opacity: 0, clipPath: "inset(0 0 100% 0)" }} animate={{ opacity: 1, clipPath: "inset(0 0 0% 0)" }} transition={{ duration: 1.4, delay: 0.3, ease: EASE }}>
+        <div className="border-t lg:border-t-0 border-line">
           <TargetLock items={targets} solUsd={solUsd} />
-        </motion.div>
-      </div>
-
-      {/* real numbers only: zero until something happens */}
-      <div className="frame border-t-0 grid grid-cols-2 lg:grid-cols-4">
-        <Crosses only={["bl", "br"]} />
-        {([
-          [light ? "Waiting in pots" : "Locked in escrow", stats ? sol(stats.lockedLamports) : 0, 3, "SOL"],
-          ["Paid for actions", stats ? sol(stats.paidLamports) : 0, 3, "SOL"],
-          ["Live challenges", stats?.liveCoins ?? 0, 0, ""],
-          ["Completed", stats?.bountiesPaid ?? 0, 0, ""],
-        ] as const).map(([label, v, dp, unit], i) => (
-          <motion.div key={label} className={`p-5 sm:p-8 border-line ${i % 2 ? "border-l" : ""} ${i >= 2 ? "border-t lg:border-t-0" : ""} ${i === 2 ? "lg:border-l" : ""}`}
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 1 + i * 0.08, ease: EASE }}>
-            <div className="label">{label}</div>
-            <div className="num text-[26px] sm:text-[36px] mt-3 whitespace-nowrap tracking-[-0.04em]"><Counter value={v} format={(n) => n.toFixed(dp)} />{unit && <span className="text-mute text-sm sm:text-base ml-2">{unit}</span>}</div>
-          </motion.div>
-        ))}
+        </div>
       </div>
     </section>
   );
@@ -182,7 +173,7 @@ function LiveTape({ items }: { items: TokenSummary[] | undefined }) {
   const live = (items ?? []).filter((s) => LIVE.includes(s.bounty.status)).slice(0, 12);
   if (live.length < 2) return null;
   return (
-    <div className="-mx-4 sm:-mx-8 border-y border-line bg-[#0c0c0c] py-3.5">
+    <div className="w-screen relative left-1/2 -translate-x-1/2 -mt-20 sm:-mt-28 border-y border-line bg-[#0c0c0c] py-3.5 relative z-10">
       <VelocityMarquee base={34}>
         {live.map((s) => (
           <Link key={s.token.id} href={`/token/${s.token.id}`} className="flex items-center gap-3 px-6 font-mono text-[12px] uppercase tracking-[.06em] text-mute hover:text-ink transition-colors whitespace-nowrap">
